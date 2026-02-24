@@ -6,7 +6,6 @@ agent:
     ROLE_ADDITIONAL: ""
   tools:
     - "kimi_cli.tools.multiagent:Task"
-    - "kimi_cli.tools.multiagent:CreateSubagent"
     - "kimi_cli.tools.todo:SetTodoList"
     - "kimi_cli.tools.shell:Shell"
     - "kimi_cli.tools.file:ReadFile"
@@ -19,3 +18,15 @@ agent:
     coder:
       path: ./sub.yaml
       description: "Good at general software engineering tasks."
+    explorer:
+      path: ./explorer.yaml
+      description: "Explores and analyzes codebases — maps repo structure, traces execution flows, identifies key components and hardware-specific code paths."
+    porter:
+      path: ./porter.yaml
+      description: "Ports NVIDIA/CUDA-only code to AMD GPUs under ROCm — resolves compatibility issues, replaces vendor-locked extensions, validates with forward pass."
+    profiler:
+      path: ./profiler.yaml
+      description: "Creates benchmarks and runs profiling — produces categorized GPU time breakdowns, identifies performance bottlenecks with rigorous measurement."
+    optimizer:
+      path: ./optimizer.yaml
+      description: "Implements specific performance optimizations and validates with benchmarks — kernel fusion, torch.compile, attention backends, quantization, etc."
