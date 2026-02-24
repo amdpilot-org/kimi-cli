@@ -30,17 +30,20 @@ These rules apply to every task you execute:
 1. **Use system-level Python directly.** Do NOT create virtual environments (no `venv`, `conda create`, etc.).
 2. **NEVER run `pip install -e .` or `pip install .` on the target repository.** To make the repo importable, manipulate `sys.path` at runtime instead.
 3. **Installing additional missing dependencies is fine** — use `pip install <package>` at the system level.
-4. **torch.compile on ROCm:** Before calling `torch.compile`, you **must** configure the inductor to prevent silent hangs:
+4. **torch.compile on ROCm:** The container environment sets `inductor_config.max_autotune = True` by default (unlike upstream PyTorch where it is `False`). This causes `torch.compile(mode="default")` to silently behave like `max-autotune`, triggering Triton GEMM autotuning that hangs on ROCm. Before calling `torch.compile`, you **must** apply these inductor overrides:
    ```python
    import torch._inductor.config as inductor_config
    import torch._dynamo.config as dynamo_config
 
+   # CRITICAL: override container default (True) to prevent autotuning hangs
    inductor_config.max_autotune = False
    inductor_config.max_autotune_gemm_backends = "ATEN"
+   # CUDAGraphs are unstable on ROCm — keep disabled
    inductor_config.triton.cudagraphs = False
    inductor_config.triton.cudagraph_trees = False
    dynamo_config.cache_size_limit = 128
    ```
+   **Use `mode="default"`.** With these overrides applied, `mode="default"` enables Triton elementwise fusion and is stable on ROCm. Do NOT use `mode="reduce-overhead"` — it depends on CUDAGraph capture, which is disabled above and unstable on ROCm.
 5. **CUDA API names work on ROCm.** `torch.cuda.*` calls, `cuda()`, and CUDA semantics all work as-is under ROCm via HIP translation. Do not rewrite these to "rocm" equivalents.
 
 # Working Directory
