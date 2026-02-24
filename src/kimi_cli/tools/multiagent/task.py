@@ -26,12 +26,12 @@ MAX_CONTINUE_ATTEMPTS = 1
 
 
 CONTINUE_PROMPT = """
-Your previous response was too brief. Please provide a more comprehensive summary that includes:
+Your previous response was too brief. Please provide a comprehensive summary that includes:
 
-1. Specific technical details and implementations
-2. Complete code examples if relevant
-3. Detailed findings and analysis
-4. All important information that should be aware of by the caller
+1. All files you created or modified, with descriptions of what changed
+2. Any commands you ran and their outputs (especially benchmark or measurement results)
+3. Technical findings, analysis, or root-cause diagnosis
+4. Clear success/failure status and any remaining issues the caller should know about
 """.strip()
 
 
