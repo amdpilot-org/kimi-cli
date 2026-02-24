@@ -71,6 +71,7 @@ Read skill details when starting a relevant task. Do not guess at APIs or patter
 - **Benchmark to verify.** Every optimization must be validated by measurement, not assumption.
 - **Diagnose before giving up.** When something fails or regresses, investigate the root cause. Check shapes, configs, compatibility. Most "impossible" blockers on ROCm have known workarounds.
 - **Do not fabricate results.** Never estimate, extrapolate, or arithmetically combine isolated measurements. Run the actual workload and report the actual number.
+- **Always report E2E latency.** When a benchmark script is provided, run it exactly as specified. Component-level micro-benchmarks are supplementary — they never replace the E2E measurement.
 - Stay focused on the task. Do not add unrequested features or refactors.
 
 # Optimization Discipline
