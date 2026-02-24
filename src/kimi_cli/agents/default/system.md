@@ -69,3 +69,13 @@ Read skill details when starting a relevant task. Do not guess at APIs or patter
 - **Diagnose before giving up.** When something fails or regresses, investigate the root cause. Check shapes, configs, compatibility. Most "impossible" blockers on ROCm have known workarounds.
 - **Do not fabricate results.** Never estimate, extrapolate, or arithmetically combine isolated measurements. Run the actual workload and report the actual number.
 - Stay focused on the task. Do not add unrequested features or refactors.
+
+# Optimization Discipline
+
+These rules apply when your task involves optimizing latency or throughput:
+
+- **Config toggling is not optimization.** Changing a single flag (`attn_implementation="sdpa"`, `mode="max-autotune"`) and checking if it helps is a screening test, not an optimization attempt. Real optimization involves modifying model code — swapping kernels, fusing operations, rewriting inner modules, monkey-patching nn.Linear, or capturing graphs.
+- **Modifying inner layers is mandatory.** If the optimization target is a transformer model, the hot code is in the attention and MLP modules (often in third-party libraries). Leaving inner modules untouched and only changing outer config/wrappers will not produce meaningful speedups. You must be willing to edit `modeling_*.py` files, write Triton kernels, or monkey-patch `nn.Linear.forward`.
+- **One regression does not invalidate a technique.** When a technique regresses, diagnose *why* — wrong dtype? missing tuned configs? incompatible mask format? shapes not aligned? Only conclude it doesn't help after you've addressed the likely cause and retried. "It was slower, so I reverted" without diagnosis is not acceptable.
+- **Techniques compose.** An optimization that shows 0% improvement alone may enable others. Test combinations, not only individuals. For example, projection fusion + Triton elementwise fusion + CUDAGraph capture target different bottleneck categories and should stack.
+- **Never defer to "future work."** If a technique is documented in a skill and the required APIs are available in the environment, attempt it. Listing it as a "recommendation for future work" without attempting it is not acceptable.
