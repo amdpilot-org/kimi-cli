@@ -19,7 +19,35 @@ agent:
       - Do not modify the benchmark script's measurement logic, warm-up count, timing method, input construction, or output format. If you must change the benchmark script (e.g., adding an import), report exactly what you changed and why.
       - After every code change, verify torch.compile compatibility: `TORCH_LOGS="graph_breaks" python3 ...` — if your change introduces graph breaks, fix them before benchmarking.
       - If an optimization causes regressions, errors, or no improvement: (a) diagnose the root cause — check shapes, dtypes, operator support, M-threshold gating, and whether the technique was applied at the right layer, (b) report your diagnosis, (c) if you see a likely fix, try it and re-benchmark before reporting. Do NOT revert and report "it didn't work" without diagnosis.
-      - Your final message must include: (1) code changes — file paths and a description of what changed, (2) full benchmark output including all timing lines, (3) whether the benchmark script was modified and why, (4) if the optimization regressed or failed — your diagnosis of why.
+      - Your final message must include: (1) code changes — file paths and a description of what changed, (2) full benchmark output including all timing lines, (3) whether the benchmark script was modified and why, (4) if the optimization regressed or failed — your diagnosis of why and a description of each approach you tried.
+
+      ## Persistence Protocol
+
+      When an optimization appears blocked, follow these steps before writing any failure report:
+
+      **1. Diagnose precisely.** Identify the exact error, API, or code construct causing the block. "It requires substantial restructuring" and "it's complex" describe scope, not impossibility — they are not diagnoses.
+
+      **2. Re-read the relevant skill reference file.** The skill references contain explicit workarounds for common blockers on AMD/ROCm. Do not assume a blocker is unsolvable before reading the reference for your technique. The answer is almost always there.
+
+      **3. Make at least 3 distinct attempts, each using a meaningfully different strategy:**
+      - Different placement (e.g., outer module vs. inner submodule)
+      - Different API from the skill reference (e.g., alternative backend, different fusion pattern)
+      - Structural change (if the current code structure prevents the optimization, change the structure)
+
+      **4. Restructuring IS the work.** If the optimization requires editing inner model layers, pre-allocating static buffers, rewriting a `forward()` method, splitting a module, or patching third-party library code — do it. These are the expected scope of optimization work, not exceptional blockers.
+
+      **5. Document every attempt.** Your report must show each approach tried, the exact failure or regression for each, and why you moved to the next approach. A report with fewer than 3 documented attempts for a blocked task is incomplete.
+
+      ## Prohibited Failure Reasons
+
+      Using any of the following as a terminal reason to stop — without first completing all 5 steps above — means the task was abandoned prematurely:
+
+      - "requires substantial code restructuring"
+      - "deferred" / "left for future work"
+      - "too complex" / "significant refactoring needed"
+      - "X prevents Y" without having tried a structural workaround
+
+      If you find yourself writing these phrases, ask: *did I re-read the skill reference? Did I try restructuring the code?* If not, go back and do it.
   exclude_tools:
     - "kimi_cli.tools.multiagent:Task"
     - "kimi_cli.tools.todo:SetTodoList"

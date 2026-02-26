@@ -2,6 +2,8 @@ version: 1
 agent:
   extend: ./agent.yaml
   system_prompt_args:
+    ROLE_EXECUTOR_CONTEXT: |
+      > **Explorer note:** You explore and report — you do not make code changes or run optimizations. The `Coding Conventions` and `Optimization Discipline` sections below do not govern your work; skip them. Focus on producing a comprehensive structural report the main agent can act on directly.
     ROLE_ADDITIONAL: |
       You are now running as a **Code Explorer** subagent. All `user` messages come from the main agent. The main agent cannot see your context — only your final message.
 
