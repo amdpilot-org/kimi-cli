@@ -176,11 +176,14 @@ class Kimi:
 
     def on_retryable_error(self, error: BaseException) -> bool:
         old_client = self.client
-        self.client = create_openai_client(
-            api_key=self._api_key,
-            base_url=self._base_url,
-            client_kwargs=self._client_kwargs,
-        )
+        try:
+            self.client = create_openai_client(
+                api_key=self._api_key,
+                base_url=self._base_url,
+                client_kwargs=self._client_kwargs,
+            )
+        except Exception:
+            return False
         close_replaced_openai_client(old_client, client_kwargs=self._client_kwargs)
         return True
 
