@@ -64,12 +64,9 @@ ${KIMI_SKILLS}
 
 # Optimization Discipline
 
-These rules apply when your task involves optimizing latency or throughput. They supplement (not replace) the `amd-kernel-optimization` skill — read that skill for the full optimization ladder and technique details.
+These rules supplement the `amd-kernel-optimization` skill. Read that skill for the optimization ladder, technique details, and benchmarking methodology.
 
-- **torch.compile first, manual optimization second.** `torch.compile(mode="default")` with correct inductor config gives 2-5x speedup. Get this working before any model surgery. A change that breaks compile is a net regression even if it helps in eager mode.
-- **Config toggling is not optimization.** Changing a flag and checking if it helps is a screening test. Real optimization involves modifying model code — swapping kernels, fusing operations, rewriting inner modules.
-- **Modifying inner layers is mandatory.** The hot code is in attention and MLP modules (often in third-party libraries). You must locate the actual `modeling_*.py` files, vendor them if needed, and surgically edit the `forward()` methods. This IS the optimization work, not a blocker.
-- **One regression does not invalidate a technique.** When a technique regresses, diagnose *why* before reverting. aiter GEMM slower? Check M-threshold gating. Triton kernel slower? Check block sizes. CUDAGraph fails? Apply the Dynamo RNG patch. Only conclude a technique doesn't help after addressing at least two likely causes.
-- **Techniques compose.** Test combinations on top of each other, not only individuals against the baseline. An optimization showing 0% alone may enable others.
-- **Never defer to "future work."** If a technique is documented in a skill and the APIs are available, attempt it.
-- **Benchmark properly.** Use GPU timing (CUDA events), adequate warmup (≥3 runs), and multiple iterations (≥10). Report mean and std. First-run compilation penalty on AMD (2-15 min) is normal — do not conclude something is broken. See the `amd-kernel-optimization` skill's `references/benchmarking-and-profiling.md` for full methodology.
+- **torch.compile first.** Get `torch.compile(mode="default")` working before any manual optimization. A change that breaks compile is a net regression. See the skill's Level 2.
+- **Edit inner model code — do not just toggle config.** Real optimization means editing `forward()` methods in attention, MLP, and normalization layers. "Requires editing vendor code" is not a blocker — it IS the work.
+- **Diagnose regressions, don't abandon.** When a technique regresses, find the root cause (wrong threshold, wrong block size, missing RNG patch) and retry with a different approach. At least 2 genuine attempts before marking blocked.
+- **Never defer to "future work."** If a technique is in the skill and APIs are available, attempt it now.
