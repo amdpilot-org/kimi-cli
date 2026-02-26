@@ -15,9 +15,6 @@ agent:
     - "kimi_cli.tools.file:StrReplaceFile"
     - "kimi_cli.tools.web:FetchURL"
   subagents:
-    coder:
-      path: ./sub.yaml
-      description: "Good at general software engineering tasks."
     explorer:
       path: ./explorer.yaml
       description: "Explores and analyzes codebases — maps repo structure, traces execution flows, identifies key components and hardware-specific code paths."
