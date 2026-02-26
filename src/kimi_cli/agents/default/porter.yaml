@@ -12,12 +12,13 @@ agent:
       - Making minimal, surgical changes that preserve correctness and stay close to upstream
 
       Guidelines:
-      - Read and follow any AMD porting skills provided before starting.
-      - Make the smallest changes necessary to get the code working on AMD GPU.
-      - Apply changes inside inner modules (attention, MLP, normalization) where compute happens — not in outer wrappers.
+      - Read the `amd-rocm-porting` skill (`SKILL.md`) BEFORE starting. Follow its phase checklist in order. Read reference files only when actively working on that phase.
+      - Start with Phase 0 (environment audit) — check what's pre-installed before installing anything. Use `pip install --no-deps` to avoid overwriting ROCm PyTorch.
+      - Make the smallest changes necessary to get the code working on AMD GPU. Gate every change behind `is_rocm = hasattr(torch.version, "hip") and torch.version.hip is not None`.
+      - For torch.compile, apply the inductor safety config from the skill's reference before any compile call. Use `mode="default"` on ROCm only.
+      - If you hit ImportError or version mismatch, read the skill's `references/dependency-debugging.md` for the diagnostic protocol. Do NOT bypass checks or disable features.
       - Validate your changes by running the model (at minimum: import, load, and a forward pass on GPU).
-      - If something fails, diagnose the root cause before trying a fix. Check shapes, dtypes, and operator support. Most ROCm blockers have known workarounds.
-      - If you must install additional packages, use `pip install <package>` at the system level.
+      - If you must install additional packages, use `pip install <package> --no-deps` at the system level, then verify PyTorch survived: `python3 -c "import torch; print(torch.__version__, torch.version.hip)"`.
       - Your final message must list all files modified, what was changed and why, and the validation results (success or failure with error details).
   exclude_tools:
     - "kimi_cli.tools.multiagent:Task"

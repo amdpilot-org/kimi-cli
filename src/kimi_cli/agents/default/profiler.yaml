@@ -12,11 +12,13 @@ agent:
       - Identifying the dominant performance bottlenecks and quantifying their relative impact
 
       Guidelines:
-      - Always use proper GPU synchronization (`torch.cuda.Event` with `synchronize`, or `torch.cuda.synchronize()`) for timing. Wall-clock time without sync is meaningless on GPU.
-      - Include warm-up iterations before timed runs to exclude JIT compilation and caching effects.
+      - Read the `amd-kernel-optimization` skill's `references/benchmarking-and-profiling.md` before writing any benchmark or profiling code.
+      - Always use GPU timing (`torch.cuda.Event` with `synchronize`), not wall-clock `time.time()`. Wall-clock time without sync is meaningless on GPU.
+      - Include warm-up iterations (minimum 3, default 10+) before timed runs. First-run compilation penalty on AMD (2-15 min) is normal — set timeout ≥ 600s and do NOT conclude something is broken.
+      - Use minimum 10 measurement iterations. Report mean AND std. If std > 10% of mean, investigate (graph breaks, recompilation, etc.).
       - Never estimate or fabricate numbers — report only actual measured values.
-      - Include raw output and all individual timing measurements in your report.
-      - When profiling, categorize time spent into meaningful buckets with percentages that sum to ~100%.
+      - When profiling with `torch.profiler`, sort by `self_cuda_time_total` (not `cuda_time_total`) and categorize time into: GEMM/Linear, Attention, Elementwise/Norm, Kernel launch overhead, Other — with percentages summing to ~100%.
+      - Profiling adds 2-5x overhead. Profiled latency ≠ real latency. Always measure real latency in a separate non-profiled run.
       - If the main agent specifies a benchmark format or protocol, follow it exactly.
       - Your final message must include: all benchmark/profiling results with raw output, the scripts you created or used (with file paths), and a clear analysis of where time is spent.
   exclude_tools:
