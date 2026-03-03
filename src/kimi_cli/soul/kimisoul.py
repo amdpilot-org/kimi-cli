@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
@@ -119,6 +120,8 @@ class KimiSoul:
             self._checkpoint_with_user_message = False
 
         self._steer_queue: asyncio.Queue[str | list[ContentPart]] = asyncio.Queue()
+        self._nudge_mtime: float = 0.0
+        self._status_interval: int = int(os.environ.get("KIMI_STATUS_INTERVAL", "30"))
 
         self._slash_commands = self._build_slash_commands()
         self._slash_command_map = self._index_slash_commands(self._slash_commands)
@@ -193,6 +196,70 @@ class KimiSoul:
             await self._inject_steer(content)
             consumed = True
         return consumed
+
+    async def _check_nudge_file(self) -> None:
+        """Check for an external nudge file and queue its content as a steer.
+
+        Monitors ``{work_dir}/.supervisor_nudge.md``.  When the file's mtime
+        advances past the last-seen value the contents are read, queued via
+        :meth:`steer`, and picked up by :meth:`_consume_pending_steers` in the
+        normal agent loop.
+        """
+        from pathlib import Path as _Path
+
+        nudge_path = _Path(str(self._runtime.session.work_dir)) / ".supervisor_nudge.md"
+        try:
+            mtime = nudge_path.stat().st_mtime
+        except OSError:
+            return
+        if mtime <= self._nudge_mtime:
+            return
+        try:
+            content = nudge_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return
+        if not content:
+            return
+        self._nudge_mtime = mtime
+        self.steer(content)
+        logger.info("Injected supervisor nudge from {path}", path=nudge_path)
+
+    def _dump_agent_status(self, step_no: int) -> None:
+        """Write recent conversation context to a status file for external observers.
+
+        Called every ``_status_interval`` steps.  The file is consumed by the
+        orchestrator's nudge agent which runs on the host and decides whether
+        to write a nudge.
+        """
+        import json
+        from pathlib import Path as _Path
+
+        if self._status_interval <= 0:
+            return
+
+        status_path = _Path(str(self._runtime.session.work_dir)) / ".agent_status.jsonl"
+        tail_count = 10
+        history = self._context.history
+        recent = list(history[-tail_count:]) if len(history) > tail_count else list(history)
+
+        lines: list[str] = []
+        for msg in recent:
+            text = msg.extract_text(" ") if hasattr(msg, "extract_text") else str(msg.content)
+            preview = text[:500] if text else ""
+            entry: dict[str, object] = {
+                "step": step_no,
+                "role": msg.role,
+                "content_preview": preview,
+            }
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                entry["tool_calls"] = [tc.function.name for tc in msg.tool_calls]
+            lines.append(json.dumps(entry, ensure_ascii=False))
+
+        try:
+            status_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            logger.debug("Dumped agent status at step {step}", step=step_no)
+        except OSError:
+            pass
 
     async def _inject_steer(self, content: str | list[ContentPart]) -> None:
         """Inject a single steer as a synthetic ``_steer`` tool_call + tool result pair."""
@@ -436,7 +503,12 @@ class KimiSoul:
                 await self._checkpoint()
                 await self._context.append_message(back_to_the_future.messages)
 
-            # Consume any pending steers between steps
+            # Dump status for external observers every N steps
+            if self._status_interval > 0 and step_no % self._status_interval == 0:
+                self._dump_agent_status(step_no)
+
+            # Check for external nudge file and consume pending steers
+            await self._check_nudge_file()
             await self._consume_pending_steers()
 
     async def _step(self) -> StepOutcome | None:
