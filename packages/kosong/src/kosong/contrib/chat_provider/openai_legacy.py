@@ -207,6 +207,10 @@ class OpenAILegacy:
         else:
             message.content = content
         dumped_message = message.model_dump(exclude_none=True)
+        if "tool_calls" in dumped_message:
+            for tc in dumped_message["tool_calls"]:
+                if "function" in tc:
+                    tc["function"].setdefault("arguments", "{}")
         if reasoning_content:
             assert self._reasoning_key, (
                 "reasoning_key must not be empty if reasoning_content exists"
