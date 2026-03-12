@@ -121,7 +121,7 @@ class KimiSoul:
 
         self._steer_queue: asyncio.Queue[str | list[ContentPart]] = asyncio.Queue()
         self._nudge_mtime: float = 0.0
-        self._status_interval: int = int(os.environ.get("KIMI_STATUS_INTERVAL", "30"))
+        self._status_interval: int = int(os.environ.get("KIMI_STATUS_INTERVAL", "5"))
 
         self._slash_commands = self._build_slash_commands()
         self._slash_command_map = self._index_slash_commands(self._slash_commands)
