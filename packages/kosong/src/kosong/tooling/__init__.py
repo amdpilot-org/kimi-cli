@@ -211,8 +211,12 @@ class CallableTool(Tool, ABC):
 
         try:
             jsonschema.validate(arguments, self.parameters)
-        except jsonschema.ValidationError as e:
-            return ToolValidateError(str(e))
+        except jsonschema.ValidationError:
+            arguments = _try_recover_double_encoded_args(arguments)
+            try:
+                jsonschema.validate(arguments, self.parameters)
+            except jsonschema.ValidationError as e:
+                return ToolValidateError(str(e))
 
         if isinstance(arguments, list):
             ret = await self.__call__(*arguments)
