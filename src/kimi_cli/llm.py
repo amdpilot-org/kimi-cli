@@ -172,11 +172,18 @@ def create_llm(
         case "anthropic":
             from kosong.contrib.chat_provider.anthropic import Anthropic
 
+            anthropic_kwargs: dict[str, Any] = {}
+            if provider.custom_headers:
+                anthropic_kwargs["default_headers"] = provider.custom_headers
+            if not provider.verify_ssl:
+                anthropic_kwargs["http_client"] = httpx.AsyncClient(verify=False)
+
             chat_provider = Anthropic(
                 model=model.model,
                 base_url=provider.base_url,
                 api_key=resolved_api_key,
                 default_max_tokens=50000,
+                **anthropic_kwargs,
             )
         case "google_genai" | "gemini":
             from kosong.contrib.chat_provider.google_genai import GoogleGenAI
