@@ -4,8 +4,9 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast, get_args
+from typing import TYPE_CHECKING, Any, Literal, cast, get_args
 
+import httpx
 from kosong.chat_provider import ChatProvider
 from pydantic import SecretStr
 
@@ -148,10 +149,17 @@ def create_llm(
         case "openai_legacy":
             from kosong.contrib.chat_provider.openai_legacy import OpenAILegacy
 
+            extra_kwargs: dict[str, Any] = {}
+            if provider.custom_headers:
+                extra_kwargs["default_headers"] = provider.custom_headers
+            if not provider.verify_ssl:
+                extra_kwargs["http_client"] = httpx.AsyncClient(verify=False)
+
             chat_provider = OpenAILegacy(
                 model=model.model,
                 base_url=provider.base_url,
                 api_key=resolved_api_key,
+                **extra_kwargs,
             )
         case "openai_responses":
             from kosong.contrib.chat_provider.openai_responses import OpenAIResponses
