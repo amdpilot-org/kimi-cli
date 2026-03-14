@@ -1,4 +1,5 @@
 import asyncio
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import override
@@ -14,7 +15,7 @@ from kimi_cli.tools.utils import ToolRejectedError, ToolResultBuilder, load_desc
 from kimi_cli.utils.environment import Environment
 from kimi_cli.utils.subprocess_env import get_clean_env
 
-MAX_TIMEOUT = 5 * 60
+MAX_TIMEOUT = int(os.environ.get("KIMI_MAX_TIMEOUT", 90 * 60))
 
 
 class Params(BaseModel):
