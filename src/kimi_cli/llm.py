@@ -154,6 +154,8 @@ def create_llm(
                 extra_kwargs["default_headers"] = provider.custom_headers
             if not provider.verify_ssl:
                 extra_kwargs["http_client"] = httpx.AsyncClient(verify=False)
+            if thinking is not False:
+                extra_kwargs["reasoning_key"] = "reasoning_content"
 
             chat_provider = OpenAILegacy(
                 model=model.model,
