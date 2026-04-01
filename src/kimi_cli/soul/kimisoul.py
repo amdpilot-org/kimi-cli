@@ -251,8 +251,44 @@ class KimiSoul:
                 "role": msg.role,
                 "content_preview": preview,
             }
+            if text and len(text) > 500:
+                entry["content_tail"] = text[-300:]
             if hasattr(msg, "tool_calls") and msg.tool_calls:
                 entry["tool_calls"] = [tc.function.name for tc in msg.tool_calls]
+                tool_args: list[str] = []
+                for tc in msg.tool_calls:
+                    name = tc.function.name
+                    args_raw = tc.function.arguments
+                    if not args_raw:
+                        continue
+                    try:
+                        args = json.loads(args_raw)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    if name in ("ReadFile", "Glob"):
+                        fp = (
+                            args.get("file_path")
+                            or args.get("path")
+                            or args.get("glob_pattern", "")
+                        )
+                        if fp:
+                            tool_args.append(f"{name}({fp})")
+                    elif name == "Grep":
+                        pat = args.get("pattern") or args.get("query", "")
+                        path = args.get("path", "")
+                        summary = f"Grep({pat[:40]}"
+                        if path:
+                            summary += f", in={path}"
+                        tool_args.append(summary + ")")
+                    elif name == "Shell":
+                        cmd = args.get("command", "")
+                        tool_args.append(f"Shell({cmd[:200]})")
+                    elif name in ("WriteFile", "StrReplaceFile"):
+                        fp = args.get("file_path") or args.get("path", "")
+                        if fp:
+                            tool_args.append(f"{name}({fp})")
+                if tool_args:
+                    entry["tool_args_summary"] = tool_args
             lines.append(json.dumps(entry, ensure_ascii=False))
 
         try:
