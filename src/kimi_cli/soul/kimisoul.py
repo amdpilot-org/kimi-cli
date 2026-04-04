@@ -251,8 +251,26 @@ class KimiSoul:
                 "role": msg.role,
                 "content_preview": preview,
             }
+            if text and len(text) > 500:
+                entry["content_tail"] = text[-300:]
             if hasattr(msg, "tool_calls") and msg.tool_calls:
                 entry["tool_calls"] = [tc.function.name for tc in msg.tool_calls]
+                args_summary: list[str] = []
+                for tc in msg.tool_calls:
+                    name = tc.function.name
+                    arg_str = tc.function.arguments or ""
+                    try:
+                        parsed_args: object = json.loads(arg_str) if arg_str else {}
+                    except (json.JSONDecodeError, TypeError):
+                        parsed_args = {}
+                    first_val = ""
+                    if isinstance(parsed_args, dict):
+                        for raw_val in parsed_args.values():  # type: ignore[union-attr]
+                            if isinstance(raw_val, str) and raw_val:
+                                first_val = raw_val[:200]
+                                break
+                    args_summary.append(f"{name}({first_val})")
+                entry["tool_args_summary"] = args_summary
             lines.append(json.dumps(entry, ensure_ascii=False))
 
         try:
