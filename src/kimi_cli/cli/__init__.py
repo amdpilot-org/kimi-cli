@@ -163,6 +163,17 @@ def kimi(
             help="User prompt to the agent. Default: prompt interactively.",
         ),
     ] = None,
+    prompt_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--prompt-file",
+            help=(
+                "Read the user prompt from a file instead of the command line. "
+                "Avoids leaking prompt text into the process cmdline "
+                "(prevents pkill -f self-kill when prompt contains process names)."
+            ),
+        ),
+    ] = None,
     print_mode: Annotated[
         bool,
         typer.Option(
@@ -399,6 +410,19 @@ def kimi(
         ui = "acp"
     elif wire_mode:
         ui = "wire"
+
+    if prompt_file is not None:
+        if prompt is not None:
+            raise typer.BadParameter(
+                "Cannot use both --prompt and --prompt-file",
+                param_hint="--prompt-file",
+            )
+        if not prompt_file.is_file():
+            raise typer.BadParameter(
+                f"Prompt file does not exist: {prompt_file}",
+                param_hint="--prompt-file",
+            )
+        prompt = prompt_file.read_text(encoding="utf-8")
 
     if prompt is not None:
         prompt = prompt.strip()
