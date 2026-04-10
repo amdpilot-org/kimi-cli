@@ -12,8 +12,6 @@ Design constraints (Linus/Kai reviewer bar):
   - Advisor must not become a hidden solver.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import time
