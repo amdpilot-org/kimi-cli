@@ -122,6 +122,10 @@ class KimiSoul:
         self._steer_queue: asyncio.Queue[str | list[ContentPart]] = asyncio.Queue()
         self._nudge_mtime: float = 0.0
         self._status_interval: int = int(os.environ.get("KIMI_STATUS_INTERVAL", "5"))
+        # Append-only status log: track how many history entries we've already
+        # dumped so each entry is written exactly once with its original step.
+        self._last_dumped_history_len: int = 0
+        self._status_seq: int = 0  # monotonic event sequence number
 
         self._slash_commands = self._build_slash_commands()
         self._slash_command_map = self._index_slash_commands(self._slash_commands)
@@ -283,11 +287,17 @@ class KimiSoul:
         logger.info("Injected forced consult response from {path}", path=response_path)
 
     def _dump_agent_status(self, step_no: int) -> None:
-        """Write recent conversation context to a status file for external observers.
+        """Append new conversation entries to an append-only status log.
 
         Called every ``_status_interval`` steps.  The file is consumed by the
-        orchestrator's nudge agent which runs on the host and decides whether
-        to write a nudge.
+        orchestrator's nudge agent and Phase 2A trigger rules.
+
+        Contract (append-only, stable event identity):
+          - Within a single trial, the file is only ever appended to.
+          - Each entry carries a monotonic ``seq`` and the ``step`` at which
+            it was dumped (which is the step the entry actually belongs to).
+          - Each JSON line is newline-terminated.
+          - Consumers can use line offset or ``seq`` as a cursor.
         """
         import json
         from pathlib import Path as _Path
@@ -296,15 +306,24 @@ class KimiSoul:
             return
 
         status_path = _Path(str(self._runtime.session.work_dir)) / ".agent_status.jsonl"
-        tail_count = 10
         history = self._context.history
-        recent = list(history[-tail_count:]) if len(history) > tail_count else list(history)
+        cursor = self._last_dumped_history_len
+        # After context compaction or revert, history may shrink.
+        # Reset cursor to avoid permanently missing new entries.
+        if cursor > len(history):
+            cursor = len(history)
+            self._last_dumped_history_len = cursor
+        new_msgs = list(history[cursor:])
+        if not new_msgs:
+            return
 
         lines: list[str] = []
-        for msg in recent:
+        for msg in new_msgs:
+            self._status_seq += 1
             text = msg.extract_text(" ") if hasattr(msg, "extract_text") else str(msg.content)
             preview = text[:500] if text else ""
             entry: dict[str, object] = {
+                "seq": self._status_seq,
                 "step": step_no,
                 "role": msg.role,
                 "content_preview": preview,
@@ -350,8 +369,11 @@ class KimiSoul:
             lines.append(json.dumps(entry, ensure_ascii=False))
 
         try:
-            status_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            logger.debug("Dumped agent status at step {step}", step=step_no)
+            with open(status_path, "a", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+            self._last_dumped_history_len = len(history)
+            logger.debug("Appended {n} entries to agent status at step {step}",
+                         n=len(lines), step=step_no)
         except OSError:
             pass
 
@@ -516,6 +538,17 @@ class KimiSoul:
         # Discard any stale steers from a previous turn.
         while not self._steer_queue.empty():
             self._steer_queue.get_nowait()
+
+        # Reset append-only status log for this trial.
+        self._last_dumped_history_len = 0
+        self._status_seq = 0
+        if self._status_interval > 0:
+            from pathlib import Path as _Path
+            status_path = _Path(str(self._runtime.session.work_dir)) / ".agent_status.jsonl"
+            try:
+                status_path.write_text("", encoding="utf-8")
+            except OSError:
+                pass
 
         if isinstance(self._agent.toolset, KimiToolset):
             await self._agent.toolset.wait_for_mcp_tools()
