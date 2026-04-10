@@ -309,10 +309,12 @@ class KimiSoul:
         history = self._context.history
         cursor = self._last_dumped_history_len
         # After context compaction or revert, history may shrink.
-        # Reset cursor to avoid permanently missing new entries.
+        # Reset cursor to 0 so ALL entries in the new (compacted) history
+        # are re-emitted.  This avoids permanently skipping messages that
+        # arrived between the compaction point and the next dump call.
         if cursor > len(history):
-            cursor = len(history)
-            self._last_dumped_history_len = cursor
+            cursor = 0
+            self._last_dumped_history_len = 0
         new_msgs = list(history[cursor:])
         if not new_msgs:
             return
