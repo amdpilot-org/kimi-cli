@@ -122,9 +122,11 @@ class KimiSoul:
         self._steer_queue: asyncio.Queue[str | list[ContentPart]] = asyncio.Queue()
         self._nudge_mtime: float = 0.0
         self._status_interval: int = int(os.environ.get("KIMI_STATUS_INTERVAL", "5"))
-        # Append-only status log: track how many history entries we've already
-        # dumped so each entry is written exactly once with its original step.
-        self._last_dumped_history_len: int = 0
+        # Append-only status log: event buffer decoupled from mutable history.
+        # Messages are pushed here at the point of production (_grow_context),
+        # then drained by _dump_agent_status.  This avoids any dependency on
+        # context.history length, which can shrink on compaction/revert.
+        self._status_event_buffer: list[tuple[int, Any]] = []  # [(step_no, Message)]
         self._status_seq: int = 0  # monotonic event sequence number
 
         self._slash_commands = self._build_slash_commands()
@@ -287,16 +289,18 @@ class KimiSoul:
         logger.info("Injected forced consult response from {path}", path=response_path)
 
     def _dump_agent_status(self, step_no: int) -> None:
-        """Append new conversation entries to an append-only status log.
+        """Drain the event buffer and append entries to the status log.
 
         Called every ``_status_interval`` steps.  The file is consumed by the
         orchestrator's nudge agent and Phase 2A trigger rules.
 
-        Contract (append-only, stable event identity):
-          - Within a single trial, the file is only ever appended to.
+        Contract (append-only, event-buffer driven):
+          - Events are pushed to ``_status_event_buffer`` at the point of
+            production (``_grow_context``), decoupled from mutable history.
           - Each entry carries a monotonic ``seq`` and the ``step`` at which
-            it was dumped (which is the step the entry actually belongs to).
-          - Each JSON line is newline-terminated.
+            the event was produced (not the dump step).
+          - The buffer is drained on each dump call — no replay, no loss.
+          - Compaction / revert do not affect the buffer.
           - Consumers can use line offset or ``seq`` as a cursor.
         """
         import json
@@ -304,29 +308,23 @@ class KimiSoul:
 
         if self._status_interval <= 0:
             return
-
-        status_path = _Path(str(self._runtime.session.work_dir)) / ".agent_status.jsonl"
-        history = self._context.history
-        cursor = self._last_dumped_history_len
-        # After context compaction or revert, history may shrink.
-        # Reset cursor to 0 so ALL entries in the new (compacted) history
-        # are re-emitted.  This avoids permanently skipping messages that
-        # arrived between the compaction point and the next dump call.
-        if cursor > len(history):
-            cursor = 0
-            self._last_dumped_history_len = 0
-        new_msgs = list(history[cursor:])
-        if not new_msgs:
+        if not self._status_event_buffer:
             return
 
+        status_path = _Path(str(self._runtime.session.work_dir)) / ".agent_status.jsonl"
+
+        # Drain the buffer
+        events = list(self._status_event_buffer)
+        self._status_event_buffer.clear()
+
         lines: list[str] = []
-        for msg in new_msgs:
+        for event_step, msg in events:
             self._status_seq += 1
             text = msg.extract_text(" ") if hasattr(msg, "extract_text") else str(msg.content)
             preview = text[:500] if text else ""
             entry: dict[str, object] = {
                 "seq": self._status_seq,
-                "step": step_no,
+                "step": event_step,
                 "role": msg.role,
                 "content_preview": preview,
             }
@@ -373,11 +371,11 @@ class KimiSoul:
         try:
             with open(status_path, "a", encoding="utf-8") as f:
                 f.write("\n".join(lines) + "\n")
-            self._last_dumped_history_len = len(history)
             logger.debug("Appended {n} entries to agent status at step {step}",
                          n=len(lines), step=step_no)
         except OSError:
-            pass
+            # Write failed — put events back so they're not lost
+            self._status_event_buffer.extend(events)
 
     async def _inject_steer(self, content: str | list[ContentPart]) -> None:
         """Inject a single steer as a synthetic ``_steer`` tool_call + tool result pair."""
@@ -542,8 +540,9 @@ class KimiSoul:
             self._steer_queue.get_nowait()
 
         # Reset append-only status log for this trial.
-        self._last_dumped_history_len = 0
+        self._status_event_buffer.clear()
         self._status_seq = 0
+        self._current_step_no = 0
         if self._status_interval > 0:
             from pathlib import Path as _Path
             status_path = _Path(str(self._runtime.session.work_dir)) / ".agent_status.jsonl"
@@ -579,6 +578,7 @@ class KimiSoul:
         step_no = 0
         while True:
             step_no += 1
+            self._current_step_no = step_no  # expose for event buffer
             if step_no > self._loop_control.max_steps_per_turn:
                 raise MaxStepsReached(self._loop_control.max_steps_per_turn)
 
@@ -745,6 +745,14 @@ class KimiSoul:
         )
         await self._context.append_message(tool_messages)
         # token count of tool results are not available yet
+
+        # Push new messages to the status event buffer.
+        # This is the single point of event production — decoupled from
+        # context.history which can shrink on compaction/revert.
+        step = getattr(self, "_current_step_no", 0)
+        self._status_event_buffer.append((step, result.message))
+        for tm in tool_messages:
+            self._status_event_buffer.append((step, tm))
 
     async def compact_context(self) -> None:
         """
