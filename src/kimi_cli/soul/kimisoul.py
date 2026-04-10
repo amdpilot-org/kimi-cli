@@ -224,6 +224,64 @@ class KimiSoul:
         self.steer(content)
         logger.info("Injected supervisor nudge from {path}", path=nudge_path)
 
+    async def _check_unsolicited_consult(self) -> None:
+        """Check for a forced/unsolicited consult response and inject it.
+
+        When the orchestrator's forced-trigger mechanism writes a
+        ``.consult_response.json`` without the executor having issued a
+        request, this method detects it and injects the advisor guidance
+        as a steer message so it reaches the executor cleanly.
+        """
+        import json as _json
+        from pathlib import Path as _Path
+
+        work_dir = _Path(str(self._runtime.session.work_dir))
+        response_path = work_dir / ".consult_response.json"
+        request_path = work_dir / ".consult_request.json"
+
+        # Only act if response exists
+        if not response_path.exists():
+            return
+
+        # If there is a pending request, the ConsultAdvisor tool is
+        # actively polling — don't interfere with the normal flow.
+        try:
+            req_content = request_path.read_text(encoding="utf-8").strip()
+            if req_content and req_content != "{}":
+                return
+        except OSError:
+            pass  # No request file — this is unsolicited
+
+        # Read and parse the response
+        try:
+            raw = response_path.read_text(encoding="utf-8").strip()
+            if not raw:
+                return
+            response = _json.loads(raw)
+        except (OSError, _json.JSONDecodeError):
+            return
+
+        # Clean up the response file
+        try:
+            response_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+        # Format and inject as a steer
+        parts: list[str] = ["[FORCED CONSULT — advisor response]", ""]
+        if diagnosis := response.get("diagnosis"):
+            parts.append(f"**Diagnosis:** {diagnosis}")
+        if next_action := response.get("next_action"):
+            parts.append(f"**Recommended next action:** {next_action}")
+        if do_not_do := response.get("do_not_do"):
+            parts.append(f"**Do NOT do:** {do_not_do}")
+        if stop_condition := response.get("stop_condition"):
+            parts.append(f"**Stop condition:** {stop_condition}")
+
+        content = "\n".join(parts)
+        self.steer(content)
+        logger.info("Injected forced consult response from {path}", path=response_path)
+
     def _dump_agent_status(self, step_no: int) -> None:
         """Write recent conversation context to a status file for external observers.
 
@@ -543,8 +601,9 @@ class KimiSoul:
             if self._status_interval > 0 and step_no % self._status_interval == 0:
                 self._dump_agent_status(step_no)
 
-            # Check for external nudge file and consume pending steers
+            # Check for external nudge file and forced consult responses
             await self._check_nudge_file()
+            await self._check_unsolicited_consult()
             await self._consume_pending_steers()
 
     async def _step(self) -> StepOutcome | None:
