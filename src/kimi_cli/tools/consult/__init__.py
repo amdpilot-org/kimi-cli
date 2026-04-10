@@ -60,7 +60,8 @@ class Params(BaseModel):
         description=(
             "Type of blocker: 'epistemic' (don't know what's wrong), "
             "'infra' (environment/setup issue vs target bug confusion), "
-            "or 'hypothesis_exhaustion' (tried all ideas, none worked)."
+            "'hypothesis_exhaustion' (tried all ideas, none worked), "
+            "or 'objective_contract' (target/objective may be unachievable or ambiguous)."
         )
     )
     concrete_question: str = Field(
