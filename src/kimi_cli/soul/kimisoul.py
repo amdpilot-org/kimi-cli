@@ -121,6 +121,7 @@ class KimiSoul:
 
         self._steer_queue: asyncio.Queue[str | list[ContentPart]] = asyncio.Queue()
         self._nudge_mtime: float = 0.0
+        self._agentic_nudge_mtime: float = 0.0
         self._status_interval: int = int(os.environ.get("KIMI_STATUS_INTERVAL", "5"))
         # Append-only status log: event buffer decoupled from mutable history.
         # Messages are pushed here at the point of production (_grow_context),
@@ -204,31 +205,41 @@ class KimiSoul:
         return consumed
 
     async def _check_nudge_file(self) -> None:
-        """Check for an external nudge file and queue its content as a steer.
+        """Check for external nudge files and queue their content as steers.
 
-        Monitors ``{work_dir}/.supervisor_nudge.md``.  When the file's mtime
-        advances past the last-seen value the contents are read, queued via
-        :meth:`steer`, and picked up by :meth:`_consume_pending_steers` in the
-        normal agent loop.
+        Monitors two paths under ``{work_dir}``:
+        - ``.supervisor_nudge.md`` — rule-based nudge from ExecutionMonitor
+        - ``.agentic_supervisor_nudge.md`` — agentic supervisor intervention
+
+        Each path has its own mtime tracker so both can be consumed
+        independently without overwrite collisions.  When either file's
+        mtime advances past the last-seen value the contents are read,
+        queued via :meth:`steer`, and picked up by
+        :meth:`_consume_pending_steers` in the normal agent loop.
         """
         from pathlib import Path as _Path
 
-        nudge_path = _Path(str(self._runtime.session.work_dir)) / ".supervisor_nudge.md"
-        try:
-            mtime = nudge_path.stat().st_mtime
-        except OSError:
-            return
-        if mtime <= self._nudge_mtime:
-            return
-        try:
-            content = nudge_path.read_text(encoding="utf-8").strip()
-        except OSError:
-            return
-        if not content:
-            return
-        self._nudge_mtime = mtime
-        self.steer(content)
-        logger.info("Injected supervisor nudge from {path}", path=nudge_path)
+        work_dir = _Path(str(self._runtime.session.work_dir))
+        nudge_sources = [
+            (work_dir / ".supervisor_nudge.md", "_nudge_mtime"),
+            (work_dir / ".agentic_supervisor_nudge.md", "_agentic_nudge_mtime"),
+        ]
+        for nudge_path, mtime_attr in nudge_sources:
+            try:
+                mtime = nudge_path.stat().st_mtime
+            except OSError:
+                continue
+            if mtime <= getattr(self, mtime_attr):
+                continue
+            try:
+                content = nudge_path.read_text(encoding="utf-8").strip()
+            except OSError:
+                continue
+            if not content:
+                continue
+            setattr(self, mtime_attr, mtime)
+            self.steer(content)
+            logger.info("Injected supervisor nudge from {path}", path=nudge_path)
 
     async def _check_unsolicited_consult(self) -> None:
         """Check for a forced/unsolicited consult response and inject it.
