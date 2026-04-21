@@ -198,7 +198,7 @@ def _reset_hint(data: Mapping[str, Any]) -> str | None:
 
 def _format_reset_time(val: str) -> str:
     """Format ISO timestamp to a readable duration."""
-    from datetime import UTC, datetime
+    from datetime import datetime, timezone
 
     try:
         # Parse ISO format like "2025-12-23T05:24:18.443553353Z"
@@ -208,7 +208,7 @@ def _format_reset_time(val: str) -> str:
             frac = frac[:6]  # Keep only microseconds
             val = f"{base}.{frac}Z"
         dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         delta = dt - now
 
         if delta.total_seconds() <= 0:

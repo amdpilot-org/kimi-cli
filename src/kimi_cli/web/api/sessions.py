@@ -9,7 +9,7 @@ import os
 import re
 import shutil
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
@@ -343,7 +343,7 @@ async def create_session(request: CreateSessionRequest | None = None) -> Session
     return Session(
         session_id=UUID(kimi_cli_session.id),
         title=kimi_cli_session.title,
-        last_updated=datetime.fromtimestamp(context_file.stat().st_mtime, tz=UTC),
+        last_updated=datetime.fromtimestamp(context_file.stat().st_mtime, tz=timezone.utc),
         is_running=False,
         status=SessionStatus(
             session_id=UUID(kimi_cli_session.id),
@@ -352,7 +352,7 @@ async def create_session(request: CreateSessionRequest | None = None) -> Session
             worker_id=None,
             reason=None,
             detail=None,
-            updated_at=datetime.now(UTC),
+            updated_at=datetime.now(timezone.utc),
         ),
         work_dir=str(work_dir),
         session_dir=str(kimi_cli_session.dir),
@@ -901,7 +901,7 @@ async def fork_session(
     return Session(
         session_id=UUID(new_session.id),
         title=new_metadata.title,
-        last_updated=datetime.fromtimestamp(context_file.stat().st_mtime, tz=UTC),
+        last_updated=datetime.fromtimestamp(context_file.stat().st_mtime, tz=timezone.utc),
         is_running=False,
         status=SessionStatus(
             session_id=UUID(new_session.id),
@@ -910,7 +910,7 @@ async def fork_session(
             worker_id=None,
             reason=None,
             detail=None,
-            updated_at=datetime.now(UTC),
+            updated_at=datetime.now(timezone.utc),
         ),
         work_dir=str(work_dir),
         session_dir=str(new_session_dir),
@@ -1151,7 +1151,7 @@ async def session_stream(
                     worker_id=None,
                     reason="initialization_failed",
                     detail=str(e),
-                    updated_at=datetime.now(UTC),
+                    updated_at=datetime.now(timezone.utc),
                 )
                 await websocket.send_text(
                     new_session_status_message(error_status).model_dump_json()

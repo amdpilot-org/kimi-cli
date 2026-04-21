@@ -19,6 +19,10 @@ _PYINSTALLER_LD_VARS = [
     "LD_PRELOAD",
 ]
 
+_AMDPILOT_PATH_PREFIX = "AMDPILOT_SHELL_PATH_PREFIX"
+_AMDPILOT_PYTHONPATH = "AMDPILOT_SHELL_PYTHONPATH"
+_AMDPILOT_UNSET_VARS = "AMDPILOT_SHELL_UNSET_VARS"
+
 
 def get_clean_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     """
@@ -36,17 +40,38 @@ def get_clean_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     """
     env = dict(base_env if base_env is not None else os.environ)
 
-    # Only process in PyInstaller frozen environment on Linux
-    if not getattr(sys, "frozen", False) or sys.platform != "linux":
-        return env
+    # Only restore library path variables in PyInstaller frozen environment
+    # on Linux, but always apply the explicit amdpilot shell contract below.
+    if getattr(sys, "frozen", False) and sys.platform == "linux":
+        for var in _PYINSTALLER_LD_VARS:
+            orig_key = f"{var}_ORIG"
+            if orig_key in env:
+                # Restore the original value that was saved by PyInstaller bootloader
+                env[var] = env[orig_key]
+            elif var in env:
+                # Variable was not set before PyInstaller modified it, so remove it
+                del env[var]
 
-    for var in _PYINSTALLER_LD_VARS:
-        orig_key = f"{var}_ORIG"
-        if orig_key in env:
-            # Restore the original value that was saved by PyInstaller bootloader
-            env[var] = env[orig_key]
-        elif var in env:
-            # Variable was not set before PyInstaller modified it, so remove it
-            del env[var]
+    unset_vars = env.pop(_AMDPILOT_UNSET_VARS, "")
+    for var in unset_vars.split(","):
+        name = var.strip()
+        if name:
+            env.pop(name, None)
+
+    pythonpath_override = env.pop(_AMDPILOT_PYTHONPATH, None)
+    if pythonpath_override is not None:
+        if pythonpath_override:
+            env["PYTHONPATH"] = pythonpath_override
+        else:
+            env.pop("PYTHONPATH", None)
+
+    path_prefix = env.pop(_AMDPILOT_PATH_PREFIX, "")
+    if path_prefix:
+        current_path = env.get("PATH", "")
+        env["PATH"] = (
+            f"{path_prefix}{os.pathsep}{current_path}"
+            if current_path
+            else path_prefix
+        )
 
     return env
