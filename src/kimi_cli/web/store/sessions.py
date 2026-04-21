@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
@@ -264,7 +264,7 @@ def _should_auto_archive(last_updated: datetime, session_metadata: SessionMetada
         return False
 
     # Check if session is older than AUTO_ARCHIVE_DAYS
-    now = datetime.now(tz=UTC)
+    now = datetime.now(tz=timezone.utc)
     age_days = (now - last_updated).days
     return age_days >= AUTO_ARCHIVE_DAYS
 
@@ -289,7 +289,9 @@ def _build_sessions_index() -> list[SessionIndexEntry]:
             if not context_file.exists():
                 continue
 
-            last_updated = datetime.fromtimestamp(context_file.stat().st_mtime, tz=UTC)
+            last_updated = datetime.fromtimestamp(
+                context_file.stat().st_mtime, tz=timezone.utc
+            )
             session_metadata = load_session_metadata(session_dir, str(session_id))
             title = session_metadata.title if session_metadata.title else "Untitled"
 
@@ -471,7 +473,9 @@ def load_session_by_id(id: UUID) -> JointSession | None:
         context_file = session_dir / "context.jsonl"
 
         if context_file.exists():
-            last_updated = datetime.fromtimestamp(context_file.stat().st_mtime, tz=UTC)
+            last_updated = datetime.fromtimestamp(
+                context_file.stat().st_mtime, tz=timezone.utc
+            )
             session_metadata = load_session_metadata(session_dir, session_id_str)
             title = session_metadata.title if session_metadata.title else "Untitled"
             entry = SessionIndexEntry(
@@ -490,7 +494,9 @@ def load_session_by_id(id: UUID) -> JointSession | None:
         # Legacy sessions: context.jsonl stored directly in sessions_dir
         legacy_context = wd.sessions_dir / f"{session_id_str}.jsonl"
         if legacy_context.exists():
-            last_updated = datetime.fromtimestamp(legacy_context.stat().st_mtime, tz=UTC)
+            last_updated = datetime.fromtimestamp(
+                legacy_context.stat().st_mtime, tz=timezone.utc
+            )
             session_metadata = load_session_metadata(session_dir, session_id_str)
             title = session_metadata.title if session_metadata.title else "Untitled"
             entry = SessionIndexEntry(

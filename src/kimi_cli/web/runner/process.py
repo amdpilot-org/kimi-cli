@@ -12,7 +12,7 @@ import sys
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -88,7 +88,7 @@ class SessionProcess:
             worker_id=self._worker_id,
             reason=None,
             detail=None,
-            updated_at=datetime.now(UTC),
+            updated_at=datetime.now(timezone.utc),
         )
         self._process: asyncio.subprocess.Process | None = None
         self._websockets: set[WebSocket] = set()
@@ -153,7 +153,7 @@ class SessionProcess:
             worker_id=self._worker_id,
             reason=reason,
             detail=detail,
-            updated_at=datetime.now(UTC),
+            updated_at=datetime.now(timezone.utc),
         )
         self._status = status
         return status
