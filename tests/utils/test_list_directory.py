@@ -14,37 +14,44 @@ from kimi_cli.utils.path import list_directory
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="Unix-specific symlink tests.")
 async def test_list_directory_unix(temp_work_dir: KaosPath) -> None:
-    # Create a regular file and a directory (use KaosPath async ops for style consistency)
-    await (temp_work_dir / "regular.txt").write_text("hello")
-    await (temp_work_dir / "adir").mkdir()
-    await (temp_work_dir / "adir" / "inside.txt").write_text("world")
-    await (temp_work_dir / "emptydir").mkdir()
-    await (temp_work_dir / "largefile.bin").write_bytes(b"x" * 10_000_000)
-    os.symlink(
-        (temp_work_dir / "regular.txt").unsafe_to_local_path(),
-        (temp_work_dir / "link_to_regular").unsafe_to_local_path(),
-    )
-    os.symlink(
-        (temp_work_dir / "missing.txt").unsafe_to_local_path(),
-        (temp_work_dir / "link_to_regular_missing").unsafe_to_local_path(),
-    )
-
-    out = await list_directory(temp_work_dir)
-    out_without_size = "\n".join(
-        sorted(
-            line.split(maxsplit=2)[0] + " " + line.split(maxsplit=2)[2] for line in out.splitlines()
+    # Force a deterministic umask so the snapshot matches across dev boxes
+    # (typically umask 002, group-writable) and CI runners (typically 022).
+    prev_umask = os.umask(0o022)
+    try:
+        # Create a regular file and a directory (use KaosPath async ops for style consistency)
+        await (temp_work_dir / "regular.txt").write_text("hello")
+        await (temp_work_dir / "adir").mkdir()
+        await (temp_work_dir / "adir" / "inside.txt").write_text("world")
+        await (temp_work_dir / "emptydir").mkdir()
+        await (temp_work_dir / "largefile.bin").write_bytes(b"x" * 10_000_000)
+        os.symlink(
+            (temp_work_dir / "regular.txt").unsafe_to_local_path(),
+            (temp_work_dir / "link_to_regular").unsafe_to_local_path(),
         )
-    )  # Remove size for snapshot stability
-    assert out_without_size == snapshot(
-        """\
--rw-rw-r-- largefile.bin
--rw-rw-r-- link_to_regular
--rw-rw-r-- regular.txt
+        os.symlink(
+            (temp_work_dir / "missing.txt").unsafe_to_local_path(),
+            (temp_work_dir / "link_to_regular_missing").unsafe_to_local_path(),
+        )
+
+        out = await list_directory(temp_work_dir)
+        out_without_size = "\n".join(
+            sorted(
+                line.split(maxsplit=2)[0] + " " + line.split(maxsplit=2)[2]
+                for line in out.splitlines()
+            )
+        )  # Remove size for snapshot stability
+        assert out_without_size == snapshot(
+            """\
+-rw-r--r-- largefile.bin
+-rw-r--r-- link_to_regular
+-rw-r--r-- regular.txt
 ?--------- link_to_regular_missing [stat failed]
-drwxrwxr-x adir
-drwxrwxr-x emptydir\
+drwxr-xr-x adir
+drwxr-xr-x emptydir\
 """
-    )
+        )
+    finally:
+        os.umask(prev_umask)
 
 
 @pytest.mark.skipif(platform.system() != "Windows", reason="Windows-specific symlink tests.")

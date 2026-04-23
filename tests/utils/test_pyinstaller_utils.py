@@ -24,6 +24,10 @@ def test_pyinstaller_datas():
     ]
 
     datas = [(p, d) for p, d in datas if "web/static" not in d]
+    # `deps/bin/rg` is only present if `make prepare` baked in the ripgrep
+    # binary locally; CI runs against a fresh checkout. Exclude so the
+    # snapshot is environment-independent.
+    datas = [(p, d) for p, d in datas if "deps/bin" not in d]
 
     assert sorted(datas) == snapshot(
         [
