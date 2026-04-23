@@ -176,7 +176,7 @@ def runtime(
         labor_market=labor_market,
         environment=environment,
         skills={},
-        skills_roots=[],
+        skills_roots=(),
         oauth=OAuthManager(config),
     )
     rt.labor_market.add_fixed_subagent(
