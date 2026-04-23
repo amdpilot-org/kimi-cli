@@ -26,28 +26,51 @@ def test_task_description(task_tool: Task):
     """Test the description of Task tool."""
     assert task_tool.base.description == snapshot(
         """\
-Spawn a subagent to perform a specific task. Subagent will be spawned with a fresh context without any history of yours.
+Spawn a subagent to perform a specific task. The subagent starts with a fresh context — it cannot see your conversation history or prior results.
 
-**Context Isolation**
+**Delegation Patterns**
 
-Context isolation is one of the key benefits of using subagents. By delegating tasks to subagents, you can keep your main context clean and focused on the main goal requested by the user.
+Use the Task tool whenever work benefits from context isolation or parallelism. Two primary patterns:
 
-Here are some scenarios you may want this tool for context isolation:
+1. **Supervisor delegation** — You act as a planner and verifier, delegating implementation phases to specialized subagents. This is the preferred pattern for complex multi-phase projects (e.g., porting a codebase, profiling, iterative optimization). Delegate entire phases, verify results yourself, then proceed to the next phase.
 
-- You wrote some code and it did not work as expected. In this case you can spawn a subagent to fix the code, asking the subagent to return how it is fixed. This can potentially benefit because the detailed process of fixing the code may not be relevant to your main goal, and may clutter your context.
-- When you need some latest knowledge of a specific library, framework or technology to proceed with your task, you can spawn a subagent to search on the internet for the needed information and return to you the gathered relevant information, for example code examples, API references, etc. This can avoid ton of irrelevant search results in your own context.
+2. **Narrow delegation** — You are doing implementation work yourself and want to offload a specific subtask (fixing a build error, exploring unfamiliar code, searching the web) to keep your own context clean and focused.
 
-DO NOT directly forward the user prompt to Task tool. DO NOT simply spawn Task tool for each todo item. This will cause the user confused because the user cannot see what the subagent do. Only you can see the response from the subagent. So, only spawn subagents for very specific and narrow tasks like fixing a compilation error, or searching for a specific solution.
+Both patterns are valid. Choose based on the user's instructions and the complexity of the work.
+
+**Writing Effective Task Prompts**
+
+The subagent has a **completely fresh context** — your prompt must be self-contained. Include:
+
+- **Objective:** What specifically needs to be done.
+- **Context:** Relevant file paths, architecture details, and current state (e.g., current best latency, what's already been done, branch name).
+- **Skills/references:** If the subagent should read a specific skill file or follow a protocol, say so explicitly and provide the path or content.
+- **Expected output:** What the subagent must report back (e.g., "report all files modified, full benchmark stdout including `[BENCHMARK]` lines, and whether the benchmark script was changed").
+- **Constraints:** What the subagent must NOT do (e.g., "do not modify benchmark measurement logic").
+
+A vague prompt produces vague results. Be specific.
+
+**Verifying Results**
+
+When a subagent reports measurements or benchmark results, verify them yourself before committing or building on top of them. This is especially important in optimization workflows where correctness is cumulative — a fabricated or misreported number early on corrupts everything downstream.
+
+**Iterating on Failures**
+
+If a subagent's work fails or produces no improvement, do not simply give up. Spawn a new task with:
+- The error message or regression details as context
+- What was already tried and why it failed
+- A request to diagnose the root cause and try an alternative approach
+
+Make at least 2 attempts per optimization category before moving on.
 
 **Parallel Multi-Tasking**
 
-Parallel multi-tasking is another key benefit of this tool. When the user request involves multiple subtasks that are independent of each other, you can use Task tool multiple times in a single response to let subagents work in parallel for you.
+When subtasks are independent, call Task multiple times in a single response to run subagents in parallel:
 
-Examples:
-
-- User requests to code, refactor or fix multiple modules/files in a project, and they can be tested independently. In this case you can spawn multiple subagents each working on a different module/file.
-- When you need to analyze a huge codebase (> hundreds of thousands of lines), you can spawn multiple subagents each exploring on a different part of the codebase and gather the summarized results.
-- When you need to search the web for multiple queries, you can spawn multiple subagents for better efficiency.
+- Exploring different parts of a large codebase simultaneously
+- Implementing independent optimizations targeting different modules
+- Running multiple web searches in parallel
+- Porting multiple independent files or subsystems concurrently
 
 **Available Subagents:**
 

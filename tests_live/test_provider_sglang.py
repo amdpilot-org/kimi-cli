@@ -8,7 +8,6 @@ Covers the amd-dev patches that are only exercised by a real OSS model:
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from tests_live.helpers.runner import KimiRunner
@@ -87,9 +86,7 @@ def test_multi_tool_call_sequence_no_parse_failures(
 
     reader = StatusReader(work_dir)
     records = reader.read_all()
-    assert records, (
-        f"expected at least one status record; stdout tail:\n{result.stdout[-1500:]}"
-    )
+    assert records, f"expected at least one status record; stdout tail:\n{result.stdout[-1500:]}"
     tool_calls = [r for r in records if r.get("role") == "tool"]
     assert tool_calls, f"no tool results in status log; records={records}"
 

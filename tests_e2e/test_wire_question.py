@@ -1,9 +1,25 @@
-"""E2E tests for AskUserQuestion via the Wire protocol."""
+"""E2E tests for AskUserQuestion via the Wire protocol.
+
+NOTE (amdpilot-org fork): the AMD default agent.yaml intentionally drops
+`kimi_cli.tools.ask_user:AskUserQuestion` from the tool list (see
+amd-dev commits `cd2fb047` reset-default-agent-tools + `7e1e72b7`
+specialize-default-agent). Tests that exercise the AskUserQuestion flow
+via the default agent therefore fail on this fork because the scripted
+tool call has no handler.
+
+The wire protocol + server plumbing for AskUserQuestion is still intact —
+any user who re-enables the tool in their own agent.yaml will get the
+full flow back. These tests are skipped on the fork baseline to keep CI
+green; if AMD ever re-enables AskUserQuestion in the default agent, undo
+the skip.
+"""
 
 from __future__ import annotations
 
 import json
 from typing import Any
+
+import pytest
 
 from .wire_helpers import (
     build_ask_user_tool_call,
@@ -15,6 +31,13 @@ from .wire_helpers import (
     start_wire,
     summarize_messages,
     write_scripted_config,
+)
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "AMD fork default agent excludes AskUserQuestion tool — these tests "
+        "require it in the default toolset. See module docstring."
+    )
 )
 
 

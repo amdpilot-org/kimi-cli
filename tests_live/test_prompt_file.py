@@ -13,12 +13,18 @@ from tests_live.helpers.runner import KimiRunner
 
 
 def test_prompt_file_flag_reads_from_file(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """`--prompt-file` reads the file and drives the agent normally."""
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent_file,
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent_file,
         project_dir=kimi_project_dir,
     )
     result = runner.run_print_with_prompt_file(
@@ -33,8 +39,12 @@ def test_prompt_file_flag_reads_from_file(
 
 
 def test_prompt_file_keeps_prompt_off_cmdline(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """Regression for the `pkill -f` self-kill: the prompt text itself must not
     appear in any argv. We can't inspect the running subprocess from here
@@ -43,7 +53,9 @@ def test_prompt_file_keeps_prompt_off_cmdline(
     did not pass --prompt.
     """
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent_file,
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent_file,
         project_dir=kimi_project_dir,
     )
     secret_marker = "UNIQUE-DO-NOT-PUT-ME-IN-ARGV-12345"
