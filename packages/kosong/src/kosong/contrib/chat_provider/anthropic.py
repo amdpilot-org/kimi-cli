@@ -108,7 +108,14 @@ _ADAPTIVE_MARKERS_NO_VERSION: tuple[str, ...] = ("mythos",)
 # `\d{1,2}(?!\d)` prevents date suffixes like `sonnet-4-20250514` from being
 # misread as minor=20: `20` would be followed by another digit, so the
 # negative lookahead fails and the regex does not match at all.
-_FAMILY_VERSION_RE = re.compile(r"(?:opus|sonnet|haiku)[.-](\d+)[.-](\d{1,2})(?!\d)")
+#
+# Only `opus` and `sonnet` are matched — adaptive thinking is documented for
+# Opus 4.6 and Sonnet 4.6 only. Haiku was included in the original upstream
+# regex as a future-proof extrapolation but would produce a 400 if a
+# hypothetical `haiku-4-6` shipped without adaptive support. Restrict to
+# announced families; add `haiku` here when Anthropic confirms adaptive on
+# that line.
+_FAMILY_VERSION_RE = re.compile(r"(?:opus|sonnet)[.-](\d+)[.-](\d{1,2})(?!\d)")
 
 # Adaptive thinking was introduced with Opus 4.6 / Sonnet 4.6.
 _ADAPTIVE_MIN_VERSION: tuple[int, int] = (4, 6)

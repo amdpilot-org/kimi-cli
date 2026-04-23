@@ -36,8 +36,12 @@ from kosong.contrib.chat_provider.anthropic import (
         ("claude-opus-5-0", True),
         ("claude-opus-5-0-20270101", True),
         ("claude-sonnet-5-0", True),
-        ("claude-haiku-4-6", True),  # haiku family nominally included if >= 4.6
-        ("claude-haiku-5-0", True),
+        # Haiku family is intentionally NOT in the adaptive regex; Anthropic has
+        # not announced adaptive thinking for Haiku. If a `haiku-4-6` ever ships
+        # without adaptive, sending `{"type": "adaptive"}` would 400. Keep these
+        # cases as explicit negatives until Anthropic announces Haiku-adaptive.
+        ("claude-haiku-4-6", False),
+        ("claude-haiku-5-0", False),
         # Bedrock / Vertex / proxy prefixes must not defeat detection
         ("anthropic.claude-opus-4-7-v1:0", True),
         ("aws/claude-opus-4-7", True),
