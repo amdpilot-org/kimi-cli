@@ -19,8 +19,7 @@ def _write_amd_like_agent(tmp_path: Path, marker: str) -> Path:
     """
     system_md = tmp_path / "amd_system.md"
     system_md.write_text(
-        "You are a test agent.\n\n"
-        "${ROLE_ADDITIONAL}\n",
+        "You are a test agent.\n\n${ROLE_ADDITIONAL}\n",
         encoding="utf-8",
     )
     agent = tmp_path / "amd_agent.yaml"
@@ -42,8 +41,12 @@ def _write_amd_like_agent(tmp_path: Path, marker: str) -> Path:
 
 
 def test_role_additional_gets_injected(
-    tmp_path: Path, work_dir: Path, home_dir: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    tmp_path: Path,
+    work_dir: Path,
+    home_dir: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """The `${ROLE_ADDITIONAL}` template placeholder must be substituted before
     the model sees the system prompt.
@@ -56,7 +59,9 @@ def test_role_additional_gets_injected(
     marker = "ROCM-MARKER-98765"
     agent = _write_amd_like_agent(tmp_path, marker)
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent,
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent,
         project_dir=kimi_project_dir,
     )
     result = runner.run_print(
@@ -74,8 +79,12 @@ def test_role_additional_gets_injected(
 
 
 def test_unsubstituted_placeholder_does_not_leak(
-    tmp_path: Path, work_dir: Path, home_dir: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    tmp_path: Path,
+    work_dir: Path,
+    home_dir: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """Failure mode: if substitution is broken we'd see the literal
     ``${ROLE_ADDITIONAL}`` or `{ROLE_ADDITIONAL}` token in the agent's output
@@ -83,7 +92,9 @@ def test_unsubstituted_placeholder_does_not_leak(
     """
     agent = _write_amd_like_agent(tmp_path, "SHOULD-NOT-LEAK")
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent,
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent,
         project_dir=kimi_project_dir,
     )
     result = runner.run_print(

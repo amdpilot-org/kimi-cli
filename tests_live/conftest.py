@@ -23,10 +23,10 @@ import pytest
 from tests_live.helpers.config import write_kimi_config
 from tests_live.helpers.runner import KimiRunner
 
-
 # --------------------------------------------------------------------------
 # CLI options
 # --------------------------------------------------------------------------
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     group = parser.getgroup("live")
@@ -62,9 +62,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 # Skip all tests in this suite unless --live-endpoint is given
 # --------------------------------------------------------------------------
 
-def pytest_collection_modifyitems(
-    config: pytest.Config, items: list[pytest.Item]
-) -> None:
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if config.getoption("--live-endpoint"):
         return
     skip = pytest.mark.skip(reason="tests_live/ requires --live-endpoint")
@@ -76,6 +75,7 @@ def pytest_collection_modifyitems(
 # --------------------------------------------------------------------------
 # Session-scoped fixtures
 # --------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def live_endpoint(request: pytest.FixtureRequest) -> str:
@@ -108,10 +108,7 @@ def live_model(request: pytest.FixtureRequest, live_endpoint: str) -> str:
     r.raise_for_status()
     ids = {m["id"] for m in r.json().get("data", [])}
     if model not in ids:
-        pytest.fail(
-            f"model {model!r} not served at {live_endpoint}; "
-            f"served models: {sorted(ids)}"
-        )
+        pytest.fail(f"model {model!r} not served at {live_endpoint}; served models: {sorted(ids)}")
     return model
 
 
@@ -135,6 +132,7 @@ def kimi_project_dir() -> Path:
 # --------------------------------------------------------------------------
 # Per-test isolation fixtures
 # --------------------------------------------------------------------------
+
 
 @pytest.fixture
 def work_dir(tmp_path: Path) -> Path:
@@ -215,10 +213,9 @@ def runner(
 # Debug helpers
 # --------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
-def _dump_on_failure(
-    request: pytest.FixtureRequest, work_dir: Path, home_dir: Path
-) -> None:
+def _dump_on_failure(request: pytest.FixtureRequest, work_dir: Path, home_dir: Path) -> None:
     """If a test fails, dump .agent_status.jsonl + config.toml for debugging."""
     yield
     # Only runs if we got here after the test finished.
@@ -247,6 +244,7 @@ def pytest_runtest_makereport(item, call):  # type: ignore[no-untyped-def]
 # This catches broken pyproject / broken submodule state before we chew
 # through an expensive real-LLM test.
 # --------------------------------------------------------------------------
+
 
 def pytest_configure(config: pytest.Config) -> None:
     if not config.getoption("--live-endpoint"):

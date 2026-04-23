@@ -56,16 +56,6 @@ def test_initialize_handshake(tmp_path) -> None:
                             "description": "Toggle YOLO mode (auto-approve all actions)",
                             "aliases": [],
                         },
-                        {
-                            "name": "skill:kimi-cli-help",
-                            "description": "Answer Kimi Code CLI usage, configuration, and troubleshooting questions. Use when user asks about Kimi Code CLI installation, setup, configuration, slash commands, keyboard shortcuts, MCP integration, providers, environment variables, how something works internally, or any questions about Kimi Code CLI itself.",
-                            "aliases": [],
-                        },
-                        {
-                            "name": "skill:skill-creator",
-                            "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Kimi's capabilities with specialized knowledge, workflows, or tool integrations.",
-                            "aliases": [],
-                        },
                     ],
                     "capabilities": {"supports_question": True},
                 }
@@ -117,16 +107,6 @@ def test_initialize_external_tool_conflict(tmp_path) -> None:
                         {
                             "name": "yolo",
                             "description": "Toggle YOLO mode (auto-approve all actions)",
-                            "aliases": [],
-                        },
-                        {
-                            "name": "skill:kimi-cli-help",
-                            "description": "Answer Kimi Code CLI usage, configuration, and troubleshooting questions. Use when user asks about Kimi Code CLI installation, setup, configuration, slash commands, keyboard shortcuts, MCP integration, providers, environment variables, how something works internally, or any questions about Kimi Code CLI itself.",
-                            "aliases": [],
-                        },
-                        {
-                            "name": "skill:skill-creator",
-                            "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Kimi's capabilities with specialized knowledge, workflows, or tool integrations.",
                             "aliases": [],
                         },
                     ],

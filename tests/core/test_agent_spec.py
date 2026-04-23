@@ -19,21 +19,27 @@ def test_load_default_agent_spec():
 
     assert spec.name == snapshot("")
     assert spec.system_prompt_path == DEFAULT_AGENT_FILE.parent / "system.md"
-    assert spec.system_prompt_args == snapshot({"ROLE_ADDITIONAL": ""})
+    assert spec.system_prompt_args == snapshot(
+        {
+            "ROLE_ADDITIONAL": """\
+You are the **Planning Supervisor** for this AMD optimization session. Your role is to plan, delegate, verify, and report — you do NOT write code, run scripts, or implement optimizations yourself.
+
+Use the `Task` tool to delegate ALL implementation work to subagents. Your value is in correctly scoping each task (providing file paths, class names, benchmark commands, and the list of already-applied changes), and in rigorously verifying subagent results before accepting them.
+""",
+            "ROLE_EXECUTOR_CONTEXT": '> **Supervisor note:** The `Coding Conventions` and `Optimization Discipline` sections below define standards you must **enforce when evaluating subagent results** — they are not actions you perform yourself. Concretely: reject any result that substitutes a config toggle for real source-file edits, a micro-benchmark for E2E latency, or a "deferred" report with fewer than 3 documented attempts. The AMD/ROCm Environment Rules below are background knowledge for understanding and validating what subagents report.\n',
+        }
+    )
     assert spec.exclude_tools == snapshot([])
     assert spec.tools == snapshot(
         [
             "kimi_cli.tools.multiagent:Task",
-            "kimi_cli.tools.ask_user:AskUserQuestion",
             "kimi_cli.tools.todo:SetTodoList",
             "kimi_cli.tools.shell:Shell",
             "kimi_cli.tools.file:ReadFile",
-            "kimi_cli.tools.file:ReadMediaFile",
             "kimi_cli.tools.file:Glob",
             "kimi_cli.tools.file:Grep",
             "kimi_cli.tools.file:WriteFile",
             "kimi_cli.tools.file:StrReplaceFile",
-            "kimi_cli.tools.web:SearchWeb",
             "kimi_cli.tools.web:FetchURL",
         ]
     )
@@ -42,44 +48,73 @@ def test_load_default_agent_spec():
         for name, spec in spec.subagents.items()
     }
     assert subagents == snapshot(
-        {"coder": ("sub.yaml", "Good at general software engineering tasks.")}
+        {
+            "explorer": (
+                "explorer.yaml",
+                "Explores and analyzes codebases — maps repo structure, traces execution flows, identifies key components and hardware-specific code paths.",
+            ),
+            "porter": (
+                "porter.yaml",
+                "Ports NVIDIA/CUDA-only code to AMD GPUs under ROCm — resolves compatibility issues, replaces vendor-locked extensions, validates with forward pass.",
+            ),
+            "profiler": (
+                "profiler.yaml",
+                "Creates benchmarks and runs profiling — produces categorized GPU time breakdowns, identifies performance bottlenecks with rigorous measurement.",
+            ),
+            "optimizer": (
+                "optimizer.yaml",
+                "Implements specific performance optimizations and validates with benchmarks — kernel fusion, torch.compile, attention backends, quantization, etc.",
+            ),
+        }
     )
 
     subagent_specs = {name: load_agent_spec(spec.path) for name, spec in spec.subagents.items()}
-    assert subagent_specs["coder"].name == snapshot("")
-    assert subagent_specs["coder"].system_prompt_path == DEFAULT_AGENT_FILE.parent / "system.md"
-    assert subagent_specs["coder"].system_prompt_args == snapshot(
+    assert subagent_specs["explorer"].name == snapshot("")
+    assert subagent_specs["explorer"].system_prompt_path == DEFAULT_AGENT_FILE.parent / "system.md"
+    assert subagent_specs["explorer"].system_prompt_args == snapshot(
         {
-            "ROLE_ADDITIONAL": "You are now running as a subagent. All the `user` messages are sent by the main agent. The main agent cannot see your context, it can only see your last message when you finish the task. You need to provide a comprehensive summary on what you have done and learned in your final message. If you wrote or modified any files, you must mention them in the summary.\n"  # noqa: E501
+            "ROLE_ADDITIONAL": """\
+You are now running as a **Code Explorer** subagent. All `user` messages come from the main agent. The main agent cannot see your context — only your final message.
+
+Your role is to explore, analyze, and understand codebases. You excel at:
+- Mapping repository structure, key modules, and their relationships
+- Tracing execution flows end-to-end (e.g., model loading, inference pipeline, data preprocessing)
+- Identifying inner computational components (attention, MLP, normalization, custom ops) and their file locations
+- Understanding configuration systems and how parameters propagate through the code
+- Spotting hardware-specific code paths (CUDA guards, device checks, vendor-locked extensions)
+
+Guidelines:
+- Read broadly first to build a structural map, then dive deep into the most relevant files.
+- Provide structured, detailed findings — include file paths, class/function names, and how components connect.
+- When tracing execution flows, describe the call chain with concrete file paths and line references.
+- If you write any helper scripts for exploration, mention them in your summary.
+- Your final message must be a comprehensive report that the main agent can act on without needing to re-explore the same code.
+""",
+            "ROLE_EXECUTOR_CONTEXT": "> **Explorer note:** You explore and report — you do not make code changes or run optimizations. The `Coding Conventions` and `Optimization Discipline` sections below do not govern your work; skip them. Focus on producing a comprehensive structural report the main agent can act on directly.\n",
         }
     )
-    assert subagent_specs["coder"].exclude_tools == snapshot(
+    assert subagent_specs["explorer"].exclude_tools == snapshot(
         [
             "kimi_cli.tools.multiagent:Task",
-            "kimi_cli.tools.multiagent:CreateSubagent",
-            "kimi_cli.tools.dmail:SendDMail",
             "kimi_cli.tools.todo:SetTodoList",
         ]
     )
-    assert subagent_specs["coder"].tools == snapshot(
+    assert subagent_specs["explorer"].tools == snapshot(
         [
             "kimi_cli.tools.multiagent:Task",
-            "kimi_cli.tools.ask_user:AskUserQuestion",
             "kimi_cli.tools.todo:SetTodoList",
             "kimi_cli.tools.shell:Shell",
             "kimi_cli.tools.file:ReadFile",
-            "kimi_cli.tools.file:ReadMediaFile",
             "kimi_cli.tools.file:Glob",
             "kimi_cli.tools.file:Grep",
             "kimi_cli.tools.file:WriteFile",
             "kimi_cli.tools.file:StrReplaceFile",
-            "kimi_cli.tools.web:SearchWeb",
             "kimi_cli.tools.web:FetchURL",
         ]
     )
     sub_subagents = {
         name: (spec.path.relative_to(DEFAULT_AGENT_FILE.parent).as_posix(), spec.description)
-        for name, spec in subagent_specs["coder"].subagents.items()
+        for name, spec in subagent_specs["explorer"].subagents.items()
     }
     assert sub_subagents == snapshot({})
 
@@ -150,28 +185,33 @@ agent:
         assert spec.name == snapshot("")
         assert spec.system_prompt_path == DEFAULT_AGENT_FILE.parent / "system.md"
         assert spec.system_prompt_args == snapshot(
-            {"ROLE_ADDITIONAL": "", "CUSTOM_ARG": "custom_value"}
+            {
+                "ROLE_ADDITIONAL": """\
+You are the **Planning Supervisor** for this AMD optimization session. Your role is to plan, delegate, verify, and report — you do NOT write code, run scripts, or implement optimizations yourself.
+
+Use the `Task` tool to delegate ALL implementation work to subagents. Your value is in correctly scoping each task (providing file paths, class names, benchmark commands, and the list of already-applied changes), and in rigorously verifying subagent results before accepting them.
+""",
+                "ROLE_EXECUTOR_CONTEXT": '> **Supervisor note:** The `Coding Conventions` and `Optimization Discipline` sections below define standards you must **enforce when evaluating subagent results** — they are not actions you perform yourself. Concretely: reject any result that substitutes a config toggle for real source-file edits, a micro-benchmark for E2E latency, or a "deferred" report with fewer than 3 documented attempts. The AMD/ROCm Environment Rules below are background knowledge for understanding and validating what subagents report.\n',
+                "CUSTOM_ARG": "custom_value",
+            }
         )
         assert spec.tools == snapshot(
             [
                 "kimi_cli.tools.multiagent:Task",
-                "kimi_cli.tools.ask_user:AskUserQuestion",
                 "kimi_cli.tools.todo:SetTodoList",
                 "kimi_cli.tools.shell:Shell",
                 "kimi_cli.tools.file:ReadFile",
-                "kimi_cli.tools.file:ReadMediaFile",
                 "kimi_cli.tools.file:Glob",
                 "kimi_cli.tools.file:Grep",
                 "kimi_cli.tools.file:WriteFile",
                 "kimi_cli.tools.file:StrReplaceFile",
-                "kimi_cli.tools.web:SearchWeb",
                 "kimi_cli.tools.web:FetchURL",
             ]
         )
         assert spec.exclude_tools == snapshot(
             ["kimi_cli.tools.web:SearchWeb", "kimi_cli.tools.web:FetchURL"]
         )
-        assert "coder" in spec.subagents
+        assert "explorer" in spec.subagents
 
 
 def test_load_agent_spec_unsupported_version():
