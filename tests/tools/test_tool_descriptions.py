@@ -208,6 +208,8 @@ Read text content from a file.
 - If you want to search for a certain content/pattern, prefer Grep tool over ReadFile.
 - Content will be returned with a line number before each line like `cat -n` format.
 - Use `line_offset` and `n_lines` parameters when you only need to read a part of the file.
+- Use negative `line_offset` to read from the end of the file (e.g. `line_offset=-100` reads the last 100 lines). This is useful for viewing the tail of log files. The absolute value cannot exceed 1000.
+- The tool always returns the total number of lines in the file in its message, which you can use to plan subsequent reads.
 - The maximum number of lines that can be read at once is 1000.
 - Any lines longer than 2000 characters will be truncated, ending with "...".
 """
@@ -270,6 +272,7 @@ A powerful search tool based-on ripgrep.
 **Tips:**
 - ALWAYS use Grep tool instead of running `grep` or `rg` command with Shell tool.
 - Use the ripgrep pattern syntax, not grep syntax. E.g. you need to escape braces like `\\\\{` to search for `{`.
+- Hidden files (dotfiles like `.gitlab-ci.yml`, `.eslintrc.json`) are always searched. To also search files excluded by `.gitignore` (e.g. `node_modules`, build outputs), set `include_ignored` to `true`. Sensitive files (such as `.env`) are still skipped for safety, even when `include_ignored` is `true`.
 """
     )
 

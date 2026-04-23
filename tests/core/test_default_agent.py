@@ -292,6 +292,8 @@ Read text content from a file.
 - If you want to search for a certain content/pattern, prefer Grep tool over ReadFile.
 - Content will be returned with a line number before each line like `cat -n` format.
 - Use `line_offset` and `n_lines` parameters when you only need to read a part of the file.
+- Use negative `line_offset` to read from the end of the file (e.g. `line_offset=-100` reads the last 100 lines). This is useful for viewing the tail of log files. The absolute value cannot exceed 1000.
+- The tool always returns the total number of lines in the file in its message, which you can use to plan subsequent reads.
 - The maximum number of lines that can be read at once is 1000.
 - Any lines longer than 2000 characters will be truncated, ending with "...".
 """,
@@ -303,8 +305,7 @@ Read text content from a file.
                         },
                         "line_offset": {
                             "default": 1,
-                            "description": "The line number to start reading from. By default read from the beginning of the file. Set this when the file is too large to read at once.",
-                            "minimum": 1,
+                            "description": "The line number to start reading from. By default read from the beginning of the file. Set this when the file is too large to read at once. Negative values read from the end of the file (e.g. -100 reads the last 100 lines). The absolute value of negative offset cannot exceed 1000.",
                             "type": "integer",
                         },
                         "n_lines": {
@@ -368,6 +369,7 @@ A powerful search tool based-on ripgrep.
 **Tips:**
 - ALWAYS use Grep tool instead of running `grep` or `rg` command with Shell tool.
 - Use the ripgrep pattern syntax, not grep syntax. E.g. you need to escape braces like `\\\\{` to search for `{`.
+- Hidden files (dotfiles like `.gitlab-ci.yml`, `.eslintrc.json`) are always searched. To also search files excluded by `.gitignore` (e.g. `node_modules`, build outputs), set `include_ignored` to `true`. Sensitive files (such as `.env`) are still skipped for safety, even when `include_ignored` is `true`.
 """,
                 parameters={
                     "properties": {
@@ -406,8 +408,8 @@ A powerful search tool based-on ripgrep.
                             "description": "Number of lines to show before and after each match (the `-C` option). Requires `output_mode` to be `content`.",
                         },
                         "-n": {
-                            "default": False,
-                            "description": "Show line numbers in output (the `-n` option). Requires `output_mode` to be `content`.",
+                            "default": True,
+                            "description": "Show line numbers in output (the `-n` option). Requires `output_mode` to be `content`. Defaults to true.",
                             "type": "boolean",
                         },
                         "-i": {
@@ -421,13 +423,27 @@ A powerful search tool based-on ripgrep.
                             "description": "File type to search. Examples: py, rust, js, ts, go, java, etc. More efficient than `glob` for standard file types.",
                         },
                         "head_limit": {
-                            "anyOf": [{"type": "integer"}, {"type": "null"}],
-                            "default": None,
-                            "description": "Limit output to first N lines, equivalent to `| head -N`. Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count_matches (limits count entries). By default, no limit is applied.",
+                            "anyOf": [
+                                {"minimum": 0, "type": "integer"},
+                                {"type": "null"},
+                            ],
+                            "default": 250,
+                            "description": "Limit output to first N lines/entries, equivalent to `| head -N`. Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count_matches (limits count entries). Defaults to 250. Pass 0 for unlimited (use sparingly — large result sets waste context).",
+                        },
+                        "offset": {
+                            "default": 0,
+                            "description": "Skip first N lines/entries before applying head_limit, equivalent to `| tail -n +N | head -N`. Works across all output modes. Defaults to 0.",
+                            "minimum": 0,
+                            "type": "integer",
                         },
                         "multiline": {
                             "default": False,
                             "description": "Enable multiline mode where `.` matches newlines and patterns can span lines (the `-U` and `--multiline-dotall` options). By default, multiline mode is disabled.",
+                            "type": "boolean",
+                        },
+                        "include_ignored": {
+                            "default": False,
+                            "description": "Include files that are ignored by `.gitignore`, `.ignore`, and other ignore rules. Useful for searching gitignored artifacts such as build outputs (e.g. `dist/`, `build/`) or `node_modules`. Sensitive files (like `.env`) remain filtered by the sensitive-file protection layer. Defaults to false.",
                             "type": "boolean",
                         },
                     },
