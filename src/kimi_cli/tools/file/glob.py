@@ -7,7 +7,7 @@ from kaos.path import KaosPath
 from kosong.tooling import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field
 
-from kimi_cli.soul.agent import BuiltinSystemPromptArgs
+from kimi_cli.soul.agent import Runtime
 from kimi_cli.tools.utils import load_desc
 from kimi_cli.utils.path import is_within_directory, list_directory
 
@@ -38,9 +38,10 @@ class Glob(CallableTool2[Params]):
     )
     params: type[Params] = Params
 
-    def __init__(self, builtin_args: BuiltinSystemPromptArgs) -> None:
+    def __init__(self, runtime: Runtime) -> None:
         super().__init__()
-        self._work_dir = builtin_args.KIMI_WORK_DIR
+        self._work_dir = runtime.builtin_args.KIMI_WORK_DIR
+        self._skills_roots = runtime.skills_roots
 
     async def _validate_pattern(self, pattern: str) -> ToolError | None:
         """Validate that the pattern is safe to use."""
@@ -60,19 +61,30 @@ class Glob(CallableTool2[Params]):
         return None
 
     async def _validate_directory(self, directory: KaosPath) -> ToolError | None:
-        """Validate that the directory is safe to search."""
+        """Validate that the directory is safe to search.
+
+        Allowed roots:
+          - the working directory (always)
+          - any discovered skills root (so agents can Glob into
+            `/workspace/skills/**` without it counting as "outside the
+            workspace"). Ports the intent of upstream c9ef52e9 onto our
+            pre-multi-path `Runtime.skills_roots`.
+        """
         resolved_dir = directory.canonical()
 
-        # Ensure the directory is within work directory
-        if not is_within_directory(resolved_dir, self._work_dir):
-            return ToolError(
-                message=(
-                    f"`{directory}` is outside the working directory. "
-                    "You can only search within the working directory."
-                ),
-                brief="Directory outside working directory",
-            )
-        return None
+        if is_within_directory(resolved_dir, self._work_dir):
+            return None
+        if any(is_within_directory(resolved_dir, root) for root in self._skills_roots):
+            return None
+
+        return ToolError(
+            message=(
+                f"`{directory}` is outside the working directory. "
+                "You can only search within the working directory "
+                "or within a discovered skills directory."
+            ),
+            brief="Directory outside allowed roots",
+        )
 
     @override
     async def __call__(self, params: Params) -> ToolReturnValue:

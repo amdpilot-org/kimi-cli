@@ -351,3 +351,36 @@ async def test_glob_hidden_directory_contents(glob_tool: Glob, temp_work_dir: Ka
     assert isinstance(result.output, str)
     output = result.output.replace("\\", "/")
     assert ".github/workflows/ci.yml" in output
+
+
+# ---------------------------------------------------------------------------
+# skills_roots access — ports the intent of upstream c9ef52e9 onto our
+# pre-multi-path Runtime.skills_roots tuple.
+# ---------------------------------------------------------------------------
+
+
+async def test_glob_allows_skills_root_search(tmp_path, runtime):
+    """A skills_root directory (outside work_dir) must be Glob-searchable."""
+    skills_dir = KaosPath.unsafe_from_local_path(tmp_path / "skills-probe")
+    await skills_dir.mkdir(parents=True)
+    await (skills_dir / "SKILL.md").write_text("# Probe skill")
+    await (skills_dir / "references").mkdir()
+    await (skills_dir / "references" / "notes.md").write_text("notes")
+
+    runtime.skills_roots = (skills_dir,)
+    tool = Glob(runtime)
+    result = await tool(Params(pattern="*.md", directory=str(skills_dir)))
+    assert not result.is_error, result.message
+    assert isinstance(result.output, str)
+    assert "SKILL.md" in result.output
+
+
+async def test_glob_rejects_non_skills_non_work_dir(tmp_path, runtime):
+    """A directory that is neither work_dir nor a skills root must be rejected."""
+    outside = KaosPath.unsafe_from_local_path(tmp_path / "not-allowed")
+    await outside.mkdir()
+    runtime.skills_roots = ()  # no skills configured
+    tool = Glob(runtime)
+    result = await tool(Params(pattern="*.md", directory=str(outside)))
+    assert result.is_error
+    assert result.message is not None and "outside" in result.message.lower()
