@@ -1,0 +1,23 @@
+# Replaces typos' built-in defaults, so we re-declare the filename/word
+# allowlist the vendor ships (kimi.spec / pyinstaller.py / datas / iterm /
+# seeked) and add our own SHA-fragment suppressor on top.
+
+[files]
+extend-exclude = [
+    "kimi.spec",
+    "pyinstaller.py",
+]
+
+[default]
+extend-ignore-re = [
+    # Short git SHAs (7-40 hex chars). Without this, typos flags fragments
+    # like "ba" inside "2ba264f1" as misspellings of "by"/"be" — we cite
+    # SHAs in commit-history docstrings and the live-test README.
+    "\\b[0-9a-f]{7,40}\\b",
+]
+
+[default.extend-words]
+datas = "datas"
+iterm = "iterm"
+seeked = "seeked"
+Seeked = "Seeked"
