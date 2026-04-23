@@ -176,6 +176,7 @@ def runtime(
         labor_market=labor_market,
         environment=environment,
         skills={},
+        skills_roots=[],
         oauth=OAuthManager(config),
     )
     rt.labor_market.add_fixed_subagent(
@@ -261,9 +262,9 @@ def read_media_file_tool(runtime: Runtime) -> ReadMediaFile:
 
 
 @pytest.fixture
-def glob_tool(builtin_args: BuiltinSystemPromptArgs) -> Glob:
+def glob_tool(runtime: Runtime) -> Glob:
     """Create a Glob tool instance."""
-    return Glob(builtin_args)
+    return Glob(runtime)
 
 
 @pytest.fixture

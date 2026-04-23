@@ -74,6 +74,7 @@ class Runtime:
     labor_market: LaborMarket
     environment: Environment
     skills: dict[str, Skill]
+    skills_roots: list[KaosPath]
 
     @staticmethod
     async def create(
@@ -136,6 +137,7 @@ class Runtime:
             labor_market=LaborMarket(),
             environment=environment,
             skills=skills_by_name,
+            skills_roots=list(skills_roots),
         )
 
     def copy_for_fixed_subagent(self) -> Runtime:
@@ -151,6 +153,7 @@ class Runtime:
             labor_market=LaborMarket(),  # fixed subagent has its own LaborMarket
             environment=self.environment,
             skills=self.skills,
+            skills_roots=self.skills_roots,
         )
 
     def copy_for_dynamic_subagent(self) -> Runtime:
@@ -166,6 +169,7 @@ class Runtime:
             labor_market=self.labor_market,  # dynamic subagent shares LaborMarket with main agent
             environment=self.environment,
             skills=self.skills,
+            skills_roots=self.skills_roots,
         )
 
 
