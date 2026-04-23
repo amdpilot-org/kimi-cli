@@ -181,7 +181,8 @@ class GoogleGenAI:
                 case "medium":
                     # FIXME: medium not supported yet, use high
                     thinking_config.thinking_level = ThinkingLevel.HIGH
-                case "high":
+                case "high" | "xhigh" | "max":
+                    # xhigh/max are Anthropic-specific; degrade to HIGH for Gemini.
                     thinking_config.thinking_level = ThinkingLevel.HIGH
         else:
             match effort:
@@ -194,7 +195,8 @@ class GoogleGenAI:
                 case "medium":
                     thinking_config.thinking_budget = 4096
                     thinking_config.include_thoughts = True
-                case "high":
+                case "high" | "xhigh" | "max":
+                    # xhigh/max are Anthropic-specific; cap at Gemini's highest budget.
                     thinking_config.thinking_budget = 32_000
                     thinking_config.include_thoughts = True
 
