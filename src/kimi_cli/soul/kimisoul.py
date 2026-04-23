@@ -279,10 +279,8 @@ class KimiSoul:
             return
 
         # Clean up the response file
-        try:
+        with suppress(OSError):
             response_path.unlink(missing_ok=True)
-        except OSError:
-            pass
 
         # Format and inject as a steer
         parts: list[str] = ["[FORCED CONSULT — advisor response]", ""]
@@ -382,8 +380,9 @@ class KimiSoul:
         try:
             with open(status_path, "a", encoding="utf-8") as f:
                 f.write("\n".join(lines) + "\n")
-            logger.debug("Appended {n} entries to agent status at step {step}",
-                         n=len(lines), step=step_no)
+            logger.debug(
+                "Appended {n} entries to agent status at step {step}", n=len(lines), step=step_no
+            )
         except OSError:
             # Write failed — put events back so they're not lost
             self._status_event_buffer.extend(events)
@@ -556,11 +555,10 @@ class KimiSoul:
         self._current_step_no = 0
         if self._status_interval > 0:
             from pathlib import Path as _Path
+
             status_path = _Path(str(self._runtime.session.work_dir)) / ".agent_status.jsonl"
-            try:
+            with suppress(OSError):
                 status_path.write_text("", encoding="utf-8")
-            except OSError:
-                pass
 
         if isinstance(self._agent.toolset, KimiToolset):
             await self._agent.toolset.wait_for_mcp_tools()

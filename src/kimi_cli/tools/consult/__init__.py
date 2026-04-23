@@ -13,6 +13,7 @@ Design constraints (Linus/Kai reviewer bar):
 """
 
 import asyncio
+import contextlib
 import json
 import time
 from pathlib import Path
@@ -40,9 +41,7 @@ MAX_CONSULTS_PER_TRIAL = 5
 
 
 class Params(BaseModel):
-    current_goal: str = Field(
-        description="What you are currently trying to achieve."
-    )
+    current_goal: str = Field(description="What you are currently trying to achieve.")
     current_hypothesis: str = Field(
         description="Your current hypothesis about the root cause or solution approach."
     )
@@ -101,10 +100,8 @@ class ConsultAdvisor(CallableTool2[Params]):
         response_path = work_dir / CONSULT_RESPONSE_FILENAME
 
         # Clean up any stale response file
-        try:
+        with contextlib.suppress(OSError):
             response_path.unlink(missing_ok=True)
-        except OSError:
-            pass
 
         # Write structured request
         request_data = {
@@ -185,9 +182,7 @@ class ConsultAdvisor(CallableTool2[Params]):
 
         need_benchmark = response.get("need_benchmark_now")
         if need_benchmark is not None:
-            parts.append(
-                f"**Run benchmark now:** {'YES' if need_benchmark else 'No'}"
-            )
+            parts.append(f"**Run benchmark now:** {'YES' if need_benchmark else 'No'}")
 
         remaining = MAX_CONSULTS_PER_TRIAL - self._consult_count
         parts.append("")

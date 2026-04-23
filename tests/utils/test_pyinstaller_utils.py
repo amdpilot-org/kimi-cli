@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import platform
 import sys
 from pathlib import Path
 
@@ -65,24 +64,17 @@ def test_pyinstaller_datas():
                 "kimi_cli",
             ),
             ("src/kimi_cli/agents/default/agent.yaml", "kimi_cli/agents/default"),
-            ("src/kimi_cli/agents/default/sub.yaml", "kimi_cli/agents/default"),
+            ("src/kimi_cli/agents/default/explorer.yaml", "kimi_cli/agents/default"),
+            ("src/kimi_cli/agents/default/openpi.md", "kimi_cli/agents/default"),
+            ("src/kimi_cli/agents/default/optimizer.yaml", "kimi_cli/agents/default"),
+            ("src/kimi_cli/agents/default/porter.yaml", "kimi_cli/agents/default"),
+            ("src/kimi_cli/agents/default/profiler.yaml", "kimi_cli/agents/default"),
             ("src/kimi_cli/agents/default/system.md", "kimi_cli/agents/default"),
             ("src/kimi_cli/agents/okabe/agent.yaml", "kimi_cli/agents/okabe"),
-            (
-                f"src/kimi_cli/deps/bin/{'rg.exe' if platform.system() == 'Windows' else 'rg'}",
-                "kimi_cli/deps/bin",
-            ),
             ("src/kimi_cli/prompts/compact.md", "kimi_cli/prompts"),
             ("src/kimi_cli/prompts/init.md", "kimi_cli/prompts"),
-            (
-                "src/kimi_cli/skills/kimi-cli-help/SKILL.md",
-                "kimi_cli/skills/kimi-cli-help",
-            ),
-            (
-                "src/kimi_cli/skills/skill-creator/SKILL.md",
-                "kimi_cli/skills/skill-creator",
-            ),
             ("src/kimi_cli/tools/ask_user/description.md", "kimi_cli/tools/ask_user"),
+            ("src/kimi_cli/tools/consult/consult_advisor.md", "kimi_cli/tools/consult"),
             (
                 "src/kimi_cli/tools/dmail/dmail.md",
                 "kimi_cli/tools/dmail",
@@ -142,6 +134,7 @@ def test_pyinstaller_hiddenimports():
         [
             "kimi_cli.tools",
             "kimi_cli.tools.ask_user",
+            "kimi_cli.tools.consult",
             "kimi_cli.tools.display",
             "kimi_cli.tools.dmail",
             "kimi_cli.tools.file",
