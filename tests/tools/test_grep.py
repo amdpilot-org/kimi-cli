@@ -928,6 +928,30 @@ async def test_grep_filters_sensitive_hyphenated_path(grep_tool: Grep):
         assert "leaked" not in result.output
 
 
+async def test_grep_filters_sensitive_path_with_digit_hyphens(grep_tool: Grep):
+    """Regression: directory names of the form `<word>-<digit>-<word>` (e.g.
+    ``step-3-deploy``, ``node-18-alpine``) must not confuse the path-extraction
+    regex used by the sensitive-file filter. Previously, a non-greedy pattern
+    locked onto the first ``-<digit>-`` inside the path and produced a
+    file_path of just ``step``, which the sensitive-file predicate rejected
+    → the ``.env`` contents leaked into the output.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for name in ("step-3-deploy", "node-18-alpine", "my-123-service"):
+            sub = Path(temp_dir) / name
+            sub.mkdir()
+            (sub / ".env").write_text("SECRET=leaked\n")
+        (Path(temp_dir) / "safe.txt").write_text("SECRET=ok\n")
+
+        result = await grep_tool(Params(pattern="SECRET", path=temp_dir, output_mode="content"))
+        assert not result.is_error
+        assert "safe.txt" in result.output
+        # All three sensitive files must be filtered regardless of dir-name shape
+        assert ".env" not in result.output
+        assert "leaked" not in result.output
+        assert "sensitive" in result.message.lower()
+
+
 async def test_grep_all_sensitive_preserves_warning(grep_tool: Grep):
     """When all results are sensitive, warning should not be lost to 'No matches found'."""
     with tempfile.TemporaryDirectory() as temp_dir:

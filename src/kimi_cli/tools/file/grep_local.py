@@ -485,10 +485,25 @@ class Grep(CallableTool2[Params]):
             output = _strip_path_prefix(output, search_base)
 
             # Step 3: filter sensitive files from output
-            # Regex for ripgrep content lines: path:linenum:text (match) or
-            # path-linenum-text (context). The separator is `:` or `-` followed
-            # by digits then the same separator again.
-            _RG_LINE_RE = re.compile(r"^(.*?)([:\-])(\d+)\2")
+            # Ripgrep content-mode lines have two shapes:
+            #   match line:   <path>:<linenum>:<text>
+            #   context line: <path>-<linenum>-<text>   (only with -A/-B/-C)
+            #
+            # The naive regex `^(.*?)([:\-])(\d+)\2` is WRONG when the path
+            # itself contains a `-<digit>-` sequence (e.g. `step-3-deploy/`,
+            # `node-18-alpine/`): the non-greedy match locks onto the first
+            # `-<digit>-` inside the path, not the real separator at the end.
+            # That bug silently bypasses sensitive-file filtering — a match
+            # for `step-3-deploy/.env:1:SECRET=leaked` yields `file_path="step"`
+            # which is not flagged as sensitive.
+            #
+            # Fix: match lines use `:` (unambiguous on Unix — paths don't
+            # contain `:`). Try `:` first with a greedy char-class that
+            # excludes `:`, then fall back to a greedy `-<digit>+-` for
+            # context lines (context paths containing `-<digit>-` remain
+            # best-effort — the rightmost match is picked).
+            _RG_MATCH_LINE_RE = re.compile(r"^([^:]+):(\d+):")
+            _RG_CONTEXT_LINE_RE = re.compile(r"^(.+)-(\d+)-")
 
             out_lines = output.split("\n")
             filtered_paths: list[str] = []
@@ -502,7 +517,7 @@ class Grep(CallableTool2[Params]):
                     if line == "--":
                         kept_lines.append(line)
                         continue
-                    m = _RG_LINE_RE.match(line)
+                    m = _RG_MATCH_LINE_RE.match(line) or _RG_CONTEXT_LINE_RE.match(line)
                     file_path = m.group(1) if m else line
                 elif params.output_mode == "count_matches":
                     # Count lines: "file.py:42"
