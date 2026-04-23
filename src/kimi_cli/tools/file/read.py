@@ -106,16 +106,11 @@ class ReadFile(CallableTool2[Params]):
                 return err
             p = p.canonical()
 
-            if is_sensitive_file(str(p)):
-                return ToolError(
-                    message=(
-                        f"`{params.path}` appears to contain secrets "
-                        "(matched sensitive file pattern). "
-                        "Reading this file is blocked to protect credentials."
-                    ),
-                    brief="Sensitive file",
-                )
-
+            # Check existence before the sensitive-file gate: a non-existent
+            # path that happens to match a sensitive pattern (e.g. `~/.env`
+            # when not deployed) should report "File not found", not
+            # "Sensitive file" — the latter is misleading about why the read
+            # failed.
             if not await p.exists():
                 return ToolError(
                     message=f"`{params.path}` does not exist.",
@@ -125,6 +120,16 @@ class ReadFile(CallableTool2[Params]):
                 return ToolError(
                     message=f"`{params.path}` is not a file.",
                     brief="Invalid path",
+                )
+
+            if is_sensitive_file(str(p)):
+                return ToolError(
+                    message=(
+                        f"`{params.path}` appears to contain secrets "
+                        "(matched sensitive file pattern). "
+                        "Reading this file is blocked to protect credentials."
+                    ),
+                    brief="Sensitive file",
                 )
 
             header = await p.read_bytes(MEDIA_SNIFF_BYTES)
@@ -220,7 +225,24 @@ class ReadFile(CallableTool2[Params]):
         )
 
     async def _read_tail(self, p: KaosPath, params: Params) -> ToolReturnValue:
-        """Read file from a negative line_offset (tail mode)."""
+        """Read file from a negative ``line_offset`` (tail mode).
+
+        Semantics: ``line_offset`` selects the **window size** from the end of
+        the file; ``n_lines`` then limits how many of those lines are actually
+        returned, counted from the *beginning* of the tail window.
+
+        Example on a 1000-line file:
+          - ``line_offset=-100, n_lines=100`` → lines 901..1000 (last 100).
+          - ``line_offset=-100, n_lines=50``  → lines 901..950 (first 50 of
+            the last 100 — NOT the last 50 of the file).
+          - ``line_offset=-100`` with default ``n_lines=MAX_LINES`` → lines
+            901..1000 because ``n_lines`` is clamped to the window size.
+
+        The "first 50 of the last 100" behaviour is deliberate: callers that
+        want the strict tail should use ``line_offset=-n_lines``. Callers
+        wanting a tail window with a smaller cap (e.g. to see where the window
+        starts) use the two-parameter form.
+        """
         tail_count = abs(params.line_offset)
 
         # Use a deque to keep the last `tail_count` lines with their line numbers

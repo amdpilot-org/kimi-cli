@@ -94,3 +94,83 @@ def test_sensitive_file_warning_multiple():
     assert "3 sensitive file(s)" in warning
     assert ".env" in warning
     assert "id_rsa" in warning
+
+
+# ---------------------------------------------------------------------------
+# Expanded coverage (second-pass review follow-up)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        # PEM keys / certs
+        "server.pem",
+        "/etc/ssl/private/server.pem",
+        "tls.key",
+        "/etc/letsencrypt/live/example.com/privkey.pem",
+        # Private key variants
+        "id_dsa",
+        "/home/user/.ssh/id_dsa",
+        # Auth dotfiles
+        ".netrc",
+        "/home/user/.netrc",
+        ".pgpass",
+        "/home/user/.pgpass",
+        ".npmrc",
+        "/home/user/.npmrc",
+        ".pypirc",
+        "/home/user/.pypirc",
+        # Kubernetes
+        "/home/user/.kube/config",
+        ".kube/config",
+        # GCP service account JSON
+        "service-account.json",
+        "service-account-prod.json",
+        "my-sa-service-account.json",
+    ],
+)
+def test_is_sensitive_expanded_patterns(path: str):
+    assert is_sensitive_file(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        # Skill assets MUST NOT trip the sensitive filter — they're
+        # reference docs the agent legitimately needs to read.
+        "/workspace/skills/amd-rocm-porting/SKILL.md",
+        "/workspace/skills/amd-kernel-optimization/references/torch-compile-and-cudagraph.md",
+        "/workspace/skills/aiter-repo/references/module-mapping.md",
+        "skills/profiling-discipline/references/profile.md",
+        # Template / example suffix variants are not sensitive
+        "server.key.example",
+        "server.pem.template",
+        "config.pem.dist",
+        "secrets.env.sample",
+        "auth.key.tmpl",
+        # Public keys / documentation about credentials
+        "id_rsa.pub",
+        "credentials.md",
+        "README-credentials.md",
+        # Generic `credentials.json` is common app config, NOT flagged
+        # (narrower than `service-account*.json`)
+        "credentials.json",
+    ],
+)
+def test_not_sensitive_expanded_not_sensitive(path: str):
+    assert not is_sensitive_file(path)
+
+
+def test_skill_asset_not_flagged_as_sensitive():
+    """Regression guard (second-pass review): AMD skills under
+    ``/workspace/skills/**/references/*.md`` must not match any sensitive
+    pattern, or the agent can't read its own docs."""
+    skill_assets = [
+        "/workspace/skills/amd-rocm-porting/SKILL.md",
+        "/workspace/skills/amd-rocm-porting/references/torch-compile-and-cudagraph.md",
+        "/workspace/skills/amd-kernel-optimization/references/rocprofv3.md",
+        "/workspace/skills/aiter-repo/references/module-mapping.md",
+    ]
+    for path in skill_assets:
+        assert not is_sensitive_file(path), f"Skill asset falsely flagged: {path}"
