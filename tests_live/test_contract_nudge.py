@@ -29,8 +29,12 @@ def _delayed_writer(path: Path, content: str, delay_s: float) -> threading.Threa
 
 
 def test_supervisor_nudge_file_is_consumed(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """Write `.supervisor_nudge.md` shortly after kicking off a multi-step task.
     The agent should observe the nudge and echo the unique marker.
@@ -49,8 +53,11 @@ def test_supervisor_nudge_file_is_consumed(
     )
 
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "1"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "1"},
     )
     result = runner.run_print(
         f"Use WriteFile three times: create {work_dir}/a.txt with 'a', "
@@ -72,8 +79,12 @@ def test_supervisor_nudge_file_is_consumed(
 
 
 def test_agentic_nudge_file_is_separate_from_supervisor_nudge(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """amd-dev ``fae579d9``: `.agentic_supervisor_nudge.md` and
     `.supervisor_nudge.md` must be tracked with independent mtimes so they
@@ -99,8 +110,11 @@ def test_agentic_nudge_file_is_separate_from_supervisor_nudge(
     )
 
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "1"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "1"},
     )
     result = runner.run_print(
         f"Use WriteFile to create {work_dir}/x.txt with 'x', then "

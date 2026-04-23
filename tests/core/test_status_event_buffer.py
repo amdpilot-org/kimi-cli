@@ -11,11 +11,8 @@ bypassing the full agent loop infrastructure.
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
 
 
 class FakeMessage:
@@ -114,10 +111,13 @@ class TestCompactionPreservedTailNoReplay:
 
         # Steps 1-10: produce and dump events
         for step in range(1, 11):
-            h.enqueue_events(step, [
-                FakeMessage("assistant", f"thinking at step {step}"),
-                FakeMessage("tool", f"ReadFile(/src/file_{step}.py) result"),
-            ])
+            h.enqueue_events(
+                step,
+                [
+                    FakeMessage("assistant", f"thinking at step {step}"),
+                    FakeMessage("tool", f"ReadFile(/src/file_{step}.py) result"),
+                ],
+            )
         h.dump_status(10)
 
         events_before = h.read_all_events()
@@ -130,13 +130,19 @@ class TestCompactionPreservedTailNoReplay:
         # The preserved tail (old8, old9, old10) should NOT appear again.
 
         # Steps 11-12: _grow_context produces new events (post-compaction)
-        h.enqueue_events(11, [
-            FakeMessage("assistant", "new thinking after compaction"),
-            FakeMessage("tool", "Shell(make build) result"),
-        ])
-        h.enqueue_events(12, [
-            FakeMessage("assistant", "analyzing build output"),
-        ])
+        h.enqueue_events(
+            11,
+            [
+                FakeMessage("assistant", "new thinking after compaction"),
+                FakeMessage("tool", "Shell(make build) result"),
+            ],
+        )
+        h.enqueue_events(
+            12,
+            [
+                FakeMessage("assistant", "analyzing build output"),
+            ],
+        )
         h.dump_status(12)
 
         all_events = h.read_all_events()
