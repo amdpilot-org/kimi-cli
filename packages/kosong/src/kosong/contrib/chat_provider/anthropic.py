@@ -47,7 +47,6 @@ from anthropic.types import (
     MessageDeltaUsage,
     MessageParam,
     MessageStartEvent,
-    MetadataParam,
     OutputConfigParam,
     RawContentBlockDeltaEvent,
     RawContentBlockStartEvent,
