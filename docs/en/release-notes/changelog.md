@@ -93,6 +93,7 @@ This page documents the changes in each Kimi Code CLI release.
 - Core: Add OS and shell information to the system prompt — the model now knows which platform it is running on and receives a Windows-specific instruction to prefer built-in tools over Shell commands, preventing Linux command errors in PowerShell
 - Shell: Fix `command` parameter description saying "bash command" regardless of platform — the description is now platform-neutral
 - Web: Fix auto-title overwriting manual session rename — when a user renames a session through the web UI, the new title is now preserved and no longer replaced by the auto-generated title
+
 ## 1.28.0 (2026-03-30)
 
 - Core: Fix file write/replace tools freezing the event loop — diff computation (`build_diff_blocks`) is now offloaded to a thread via `asyncio.to_thread`, preventing the UI from hanging when editing large files
