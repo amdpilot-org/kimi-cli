@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
 
 
 @dataclass

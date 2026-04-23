@@ -5,16 +5,13 @@ If this test fails, nothing else in tests_live/ should be trusted.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from tests_live.helpers.runner import KimiRunner
 from tests_live.helpers.status_reader import StatusReader
 
 
-def test_smoke_kimi_connects_and_exits_cleanly(
-    runner: KimiRunner, live_timeout: int
-) -> None:
+def test_smoke_kimi_connects_and_exits_cleanly(runner: KimiRunner, live_timeout: int) -> None:
     """Minimal end-to-end: kimi launches, connects to sglang, answers, exits 0."""
     result = runner.run_print(
         "Reply with exactly the word PONG. Do not use any tools.",
@@ -27,8 +24,12 @@ def test_smoke_kimi_connects_and_exits_cleanly(
 
 
 def test_smoke_agent_status_file_gets_written(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """Force per-step dumps and assert the file exists + has required fields.
 

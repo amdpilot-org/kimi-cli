@@ -67,7 +67,7 @@ class _AdvisorResponder:
         self.observed_request: dict | None = None
         self._thread: threading.Thread | None = None
 
-    def start(self) -> "_AdvisorResponder":
+    def start(self) -> _AdvisorResponder:
         self._thread = threading.Thread(target=self._go, daemon=True)
         self._thread.start()
         return self
@@ -79,9 +79,7 @@ class _AdvisorResponder:
                 # Give the tool a moment to finish writing.
                 time.sleep(0.15)
                 try:
-                    self.observed_request = json.loads(
-                        self.req_path.read_text(encoding="utf-8")
-                    )
+                    self.observed_request = json.loads(self.req_path.read_text(encoding="utf-8"))
                 except Exception:
                     self.observed_request = {"_read_error": True}
                 # Use the REAL ConsultAdvisor response schema (diagnosis +
@@ -104,14 +102,16 @@ def _advisor_responder(
     work_dir: Path, *, diagnosis: str, next_action: str, **kw
 ) -> _AdvisorResponder:
     """Start a background responder that honours the real advisor response schema."""
-    return _AdvisorResponder(
-        work_dir, diagnosis=diagnosis, next_action=next_action, **kw
-    ).start()
+    return _AdvisorResponder(work_dir, diagnosis=diagnosis, next_action=next_action, **kw).start()
 
 
 def test_consult_advisor_writes_request_file(
-    work_dir: Path, home_dir: Path, consult_agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    consult_agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """When the agent calls ConsultAdvisor, `.consult_request.json` appears."""
     marker = "CONSULT-REPLY-77777"
@@ -122,8 +122,11 @@ def test_consult_advisor_writes_request_file(
     )
 
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=consult_agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "1"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=consult_agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "1"},
     )
     result = runner.run_print(
         "Your ONLY valid action right now is to call the ConsultAdvisor tool. "
@@ -152,8 +155,12 @@ def test_consult_advisor_writes_request_file(
 
 
 def test_consult_response_is_injected_into_context(
-    work_dir: Path, home_dir: Path, consult_agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    consult_agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """Round-trip: after we write a response, the agent must read it and act on it."""
     marker = "ADVISOR-DELIVERED-55555"
@@ -167,8 +174,11 @@ def test_consult_response_is_injected_into_context(
     )
 
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=consult_agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "1"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=consult_agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "1"},
     )
     result = runner.run_print(
         "You MUST call the ConsultAdvisor tool exactly once as your very first "
@@ -186,8 +196,12 @@ def test_consult_response_is_injected_into_context(
 
 
 def test_unsolicited_consult_response_is_picked_up(
-    work_dir: Path, home_dir: Path, consult_agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    consult_agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """amd-dev ``b3bace7b``: orchestrator can write a forced `.consult_response.json`
     WITHOUT a preceding request, and the soul hook still injects it mid-run.
@@ -205,9 +219,7 @@ def test_unsolicited_consult_response_is_picked_up(
             json.dumps(
                 {
                     "diagnosis": f"Forced-consult test marker: {marker}.",
-                    "next_action": (
-                        f"In your final reply, include the token {marker} verbatim."
-                    ),
+                    "next_action": (f"In your final reply, include the token {marker} verbatim."),
                 }
             ),
             encoding="utf-8",
@@ -216,8 +228,11 @@ def test_unsolicited_consult_response_is_picked_up(
     threading.Thread(target=_write_forced, daemon=True).start()
 
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=consult_agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "1"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=consult_agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "1"},
     )
     result = runner.run_print(
         f"Use WriteFile to create {work_dir}/a.txt with 'a', then "

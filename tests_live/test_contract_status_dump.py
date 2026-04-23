@@ -32,35 +32,47 @@ def _run_tool_using_turn(runner: KimiRunner, work_dir: Path, live_timeout: int) 
 
 
 def test_contract_required_fields_present(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """Every record has `step` and `role`."""
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "1"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "1"},
     )
     reader = _run_tool_using_turn(runner, work_dir, live_timeout)
     reader.assert_contract_fields_present()
 
 
 def test_contract_tool_call_shape(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """Assistant records with tool calls must carry `tool_calls` (list[str])
     and `tool_args_summary` (list[str]). Amdpilot parser reads both
     (`execution_monitor.py:240-260`).
     """
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "1"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "1"},
     )
     reader = _run_tool_using_turn(runner, work_dir, live_timeout)
     records = reader.read_all()
-    assistant_records = [
-        r for r in records if r.get("role") == "assistant" and r.get("tool_calls")
-    ]
+    assistant_records = [r for r in records if r.get("role") == "assistant" and r.get("tool_calls")]
     assert assistant_records, f"no assistant record with tool_calls; records={records}"
     first = assistant_records[0]
     assert isinstance(first["tool_calls"], list), first
@@ -70,15 +82,22 @@ def test_contract_tool_call_shape(
 
 
 def test_contract_seq_monotonic(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """`seq` (monotonic sequence from amd-dev event buffer redesign, 33089173)
     must be strictly increasing across the file.
     """
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "1"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "1"},
     )
     reader = _run_tool_using_turn(runner, work_dir, live_timeout)
     records = reader.read_all()
@@ -91,20 +110,26 @@ def test_contract_seq_monotonic(
 
 
 def test_contract_content_preview_truncation(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """`content_preview` is bounded (amdpilot expects ~500 char cap)."""
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "1"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "1"},
     )
     # Ask for a longer response by having the agent write and then echo a file.
     probe = work_dir / "content-preview-probe.txt"
     body = "A" * 2000
     res = runner.run_print(
-        f"First WriteFile to {probe} with exactly this content: {body!r}. "
-        f"Then reply DONE.",
+        f"First WriteFile to {probe} with exactly this content: {body!r}. Then reply DONE.",
         thinking=False,
         timeout=live_timeout,
     )
@@ -115,14 +140,16 @@ def test_contract_content_preview_truncation(
         preview = r.get("content_preview", "")
         assert isinstance(preview, str), r
         # Our amd-dev dump code caps at 500 chars for the preview.
-        assert len(preview) <= 512, (
-            f"content_preview exceeds 512 chars ({len(preview)}): {r}"
-        )
+        assert len(preview) <= 512, f"content_preview exceeds 512 chars ({len(preview)}): {r}"
 
 
 def test_contract_interval_env_respected(
-    work_dir: Path, home_dir: Path, agent_file: Path, kimi_config: Path,  # noqa: ARG001
-    kimi_project_dir: Path, live_timeout: int,
+    work_dir: Path,
+    home_dir: Path,
+    agent_file: Path,
+    kimi_config: Path,  # noqa: ARG001
+    kimi_project_dir: Path,
+    live_timeout: int,
 ) -> None:
     """`KIMI_STATUS_INTERVAL=0` disables dumps (amd-dev ``725ee9bb`` explicit opt-out).
 
@@ -130,8 +157,11 @@ def test_contract_interval_env_respected(
     (e.g., non-nudge deployments).
     """
     runner = KimiRunner(
-        work_dir=work_dir, home_dir=home_dir, agent_file=agent_file,
-        project_dir=kimi_project_dir, extra_env={"KIMI_STATUS_INTERVAL": "0"},
+        work_dir=work_dir,
+        home_dir=home_dir,
+        agent_file=agent_file,
+        project_dir=kimi_project_dir,
+        extra_env={"KIMI_STATUS_INTERVAL": "0"},
     )
     _run_tool_using_turn(runner, work_dir, live_timeout)
     reader = StatusReader(work_dir)

@@ -17,7 +17,7 @@ import contextlib
 import json
 import time
 from pathlib import Path
-from typing import override
+from typing import Any, override
 
 from kosong.tooling import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from loguru import logger
@@ -163,7 +163,7 @@ class ConsultAdvisor(CallableTool2[Params]):
             brief="Consult timeout",
         )
 
-    def _format_response(self, response: dict) -> ToolReturnValue:
+    def _format_response(self, response: dict[str, Any]) -> ToolReturnValue:
         """Format the advisor response into a readable tool output."""
         parts: list[str] = []
         parts.append(f"## Advisor Response (consult #{self._consult_count})")
