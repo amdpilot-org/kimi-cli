@@ -11,6 +11,7 @@ import json
 from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Literal, Self, TypedDict, Unpack, cast
 
+import httpx
 from anthropic import (
     AnthropicError,
     AsyncAnthropic,
@@ -72,6 +73,7 @@ from kosong.chat_provider import (
     StreamedMessagePart,
     ThinkingEffort,
     TokenUsage,
+    convert_httpx_error,
 )
 from kosong.contrib.chat_provider.common import ToolMessageConversion
 from kosong.message import (
@@ -179,7 +181,25 @@ class Anthropic:
         )
         messages: list[MessageParam] = []
         for message in history:
-            messages.append(self._convert_message(message))
+            converted = self._convert_message(message)
+            # Per Anthropic spec, tool_result blocks for the same assistant turn
+            # must live in a single user message. Internal Messages model one
+            # tool call per entry, so merge consecutive tool-result-only user
+            # messages here. Strict-compat backends (e.g. DeepSeek /anthropic)
+            # 400 on the split form, and the official backend silently teaches
+            # the model to stop calling tools in parallel.
+            if (
+                messages
+                and converted["role"] == "user"
+                and messages[-1]["role"] == "user"
+                and _is_tool_result_only(messages[-1]["content"])
+                and _is_tool_result_only(converted["content"])
+            ):
+                prev_content = cast(list[ContentBlockParam], messages[-1]["content"])
+                new_content = cast(list[ContentBlockParam], converted["content"])
+                messages[-1]["content"] = [*prev_content, *new_content]
+            else:
+                messages.append(converted)
         if messages:
             last_message = messages[-1]
             last_content = last_message["content"]
@@ -225,7 +245,7 @@ class Anthropic:
                 **generation_kwargs,
             )
             return AnthropicStreamedMessage(response)
-        except AnthropicError as e:
+        except (AnthropicError, httpx.HTTPError) as e:
             raise _convert_error(e) from e
 
     def _use_adaptive_thinking(self) -> bool:
@@ -465,7 +485,7 @@ class AnthropicStreamedMessage:
                             self._update_usage(event.usage)
                     elif isinstance(event, MessageStopEvent):
                         continue
-        except AnthropicError as exc:
+        except (AnthropicError, httpx.HTTPError) as exc:
             raise _convert_error(exc) from exc
 
 
@@ -475,6 +495,19 @@ def _convert_tool(tool: Tool) -> ToolParam:
         "description": tool.description,
         "input_schema": tool.parameters,
     }
+
+
+def _is_tool_result_only(content: object) -> bool:
+    """True iff ``content`` is a non-empty list of only tool_result blocks.
+
+    Guards the parallel-tool-result merge in ``generate()``: we only collapse
+    consecutive user messages when both sides carry pure tool results, never
+    when a user message mixes in text, images, or anything else.
+    """
+    if not isinstance(content, list) or not content:
+        return False
+    blocks = cast(list[ContentBlockParam], content)
+    return all(b["type"] == "tool_result" for b in blocks)
 
 
 def _tool_result_message_to_block(
@@ -535,7 +568,13 @@ def _image_url_part_to_anthropic(part: ImageURLPart) -> ImageBlockParam:
         )
 
 
-def _convert_error(error: AnthropicError) -> ChatProviderError:
+def _convert_error(error: AnthropicError | httpx.HTTPError) -> ChatProviderError:
+    # httpx errors may leak through the Anthropic SDK during streaming;
+    # delegate to the shared converter.
+    if isinstance(error, httpx.HTTPError):
+        return convert_httpx_error(error)
+    # Anthropic SDK errors — check subclasses before parents to avoid
+    # misclassification (e.g. APITimeoutError inherits APIConnectionError).
     if isinstance(error, AnthropicAPIStatusError):
         return APIStatusError(error.status_code, str(error))
     if isinstance(error, AnthropicAuthenticationError):
@@ -544,8 +583,8 @@ def _convert_error(error: AnthropicError) -> ChatProviderError:
         return APIStatusError(getattr(error, "status_code", 403), str(error))
     if isinstance(error, AnthropicRateLimitError):
         return APIStatusError(getattr(error, "status_code", 429), str(error))
-    if isinstance(error, AnthropicAPIConnectionError):
-        return APIConnectionError(str(error))
     if isinstance(error, AnthropicAPITimeoutError):
         return APITimeoutError(str(error))
+    if isinstance(error, AnthropicAPIConnectionError):
+        return APIConnectionError(str(error))
     return ChatProviderError(f"Anthropic error: {error}")
