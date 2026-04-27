@@ -187,8 +187,20 @@ class ToolCall(BaseModel, MergeableMixin):
 
         name: str
         """The name of the tool to be called."""
-        arguments: str | None
-        """Arguments of the tool call in JSON string format."""
+        arguments: str | None = None
+        """Arguments of the tool call in JSON string format.
+
+        Defaults to ``None`` so that synthesized tool calls without
+        arguments (e.g. the ``_steer`` injection in
+        :meth:`KimiSoul._inject_steer`) survive a round-trip through
+        ``model_dump(exclude_none=True)`` -> JSON -> validation.
+        Without this default, a session log persisted on disk loses
+        ``arguments=None`` (the dump strips Nones), and reloading via
+        the kimi-cli ``--session`` resume path fails Pydantic validation
+        with "Field required" — observed live during a teacher-student
+        dialogue resume on a trial that had received nudge agent
+        steers.
+        """
 
     type: Literal["function"] = "function"
 
