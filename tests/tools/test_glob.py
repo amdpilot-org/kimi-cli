@@ -308,3 +308,79 @@ async def test_glob_pattern_edge_cases(glob_tool: Glob, test_files: KaosPath):
     result = await glob_tool(Params(pattern="**/*.txt", directory=str(test_files)))
     assert result.is_error
     assert "starts with '**' which is not allowed" in result.message
+
+
+async def test_glob_hidden_files(glob_tool: Glob, temp_work_dir: KaosPath):
+    """Hidden files (dotfiles) should be matched by glob patterns."""
+    # Create hidden files and visible files
+    await (temp_work_dir / ".gitlab-ci.yml").write_text("stages: [build]")
+    await (temp_work_dir / ".eslintrc.json").write_text("{}")
+    await (temp_work_dir / "config.yml").write_text("key: value")
+
+    result = await glob_tool(Params(pattern="*.yml", directory=str(temp_work_dir)))
+    assert not result.is_error
+    assert ".gitlab-ci.yml" in result.output
+    assert "config.yml" in result.output
+
+
+async def test_glob_hidden_files_in_recursive_pattern(glob_tool: Glob, temp_work_dir: KaosPath):
+    """Hidden files inside hidden directories should be found by recursive glob patterns."""
+    # Create hidden directory with files
+    await (temp_work_dir / "src").mkdir()
+    await (temp_work_dir / "src" / ".config").mkdir()
+    await (temp_work_dir / "src" / ".config" / "settings.yml").write_text("debug: true")
+    await (temp_work_dir / "src" / "main.py").write_text("pass")
+
+    result = await glob_tool(Params(pattern="src/**/*.yml", directory=str(temp_work_dir)))
+    assert not result.is_error
+    assert isinstance(result.output, str)
+    output = result.output.replace("\\", "/")
+    assert "src/.config/settings.yml" in output
+
+
+async def test_glob_hidden_directory_contents(glob_tool: Glob, temp_work_dir: KaosPath):
+    """Files inside hidden directories should be discoverable."""
+    await (temp_work_dir / ".github").mkdir()
+    await (temp_work_dir / ".github" / "workflows").mkdir(parents=True)
+    await (temp_work_dir / ".github" / "workflows" / "ci.yml").write_text("name: CI")
+    await (temp_work_dir / "src").mkdir()
+    await (temp_work_dir / "src" / "app.py").write_text("pass")
+
+    result = await glob_tool(Params(pattern=".github/**/*.yml", directory=str(temp_work_dir)))
+    assert not result.is_error
+    assert isinstance(result.output, str)
+    output = result.output.replace("\\", "/")
+    assert ".github/workflows/ci.yml" in output
+
+
+# ---------------------------------------------------------------------------
+# skills_roots access — ports the intent of upstream c9ef52e9 onto our
+# pre-multi-path Runtime.skills_roots tuple.
+# ---------------------------------------------------------------------------
+
+
+async def test_glob_allows_skills_root_search(tmp_path, runtime):
+    """A skills_root directory (outside work_dir) must be Glob-searchable."""
+    skills_dir = KaosPath.unsafe_from_local_path(tmp_path / "skills-probe")
+    await skills_dir.mkdir(parents=True)
+    await (skills_dir / "SKILL.md").write_text("# Probe skill")
+    await (skills_dir / "references").mkdir()
+    await (skills_dir / "references" / "notes.md").write_text("notes")
+
+    runtime.skills_roots = (skills_dir,)
+    tool = Glob(runtime)
+    result = await tool(Params(pattern="*.md", directory=str(skills_dir)))
+    assert not result.is_error, result.message
+    assert isinstance(result.output, str)
+    assert "SKILL.md" in result.output
+
+
+async def test_glob_rejects_non_skills_non_work_dir(tmp_path, runtime):
+    """A directory that is neither work_dir nor a skills root must be rejected."""
+    outside = KaosPath.unsafe_from_local_path(tmp_path / "not-allowed")
+    await outside.mkdir()
+    runtime.skills_roots = ()  # no skills configured
+    tool = Glob(runtime)
+    result = await tool(Params(pattern="*.md", directory=str(outside)))
+    assert result.is_error
+    assert result.message is not None and "outside" in result.message.lower()

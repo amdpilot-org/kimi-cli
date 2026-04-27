@@ -44,6 +44,8 @@ class LLMProvider(BaseModel):
     """Environment variables to set before creating the provider instance"""
     custom_headers: dict[str, str] | None = None
     """Custom headers to include in API requests"""
+    verify_ssl: bool = True
+    """Whether to verify SSL certificates (set to false for internal gateways)"""
     oauth: OAuthRef | None = None
     """OAuth credential reference (do not store tokens here)."""
 

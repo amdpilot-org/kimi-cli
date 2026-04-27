@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
@@ -119,6 +120,15 @@ class KimiSoul:
             self._checkpoint_with_user_message = False
 
         self._steer_queue: asyncio.Queue[str | list[ContentPart]] = asyncio.Queue()
+        self._nudge_mtime: float = 0.0
+        self._agentic_nudge_mtime: float = 0.0
+        self._status_interval: int = int(os.environ.get("KIMI_STATUS_INTERVAL", "5"))
+        # Append-only status log: event buffer decoupled from mutable history.
+        # Messages are pushed here at the point of production (_grow_context),
+        # then drained by _dump_agent_status.  This avoids any dependency on
+        # context.history length, which can shrink on compaction/revert.
+        self._status_event_buffer: list[tuple[int, Any]] = []  # [(step_no, Message)]
+        self._status_seq: int = 0  # monotonic event sequence number
 
         self._slash_commands = self._build_slash_commands()
         self._slash_command_map = self._index_slash_commands(self._slash_commands)
@@ -193,6 +203,189 @@ class KimiSoul:
             await self._inject_steer(content)
             consumed = True
         return consumed
+
+    async def _check_nudge_file(self) -> None:
+        """Check for external nudge files and queue their content as steers.
+
+        Monitors two paths under ``{work_dir}``:
+        - ``.supervisor_nudge.md`` — rule-based nudge from ExecutionMonitor
+        - ``.agentic_supervisor_nudge.md`` — agentic supervisor intervention
+
+        Each path has its own mtime tracker so both can be consumed
+        independently without overwrite collisions.  When either file's
+        mtime advances past the last-seen value the contents are read,
+        queued via :meth:`steer`, and picked up by
+        :meth:`_consume_pending_steers` in the normal agent loop.
+        """
+        from pathlib import Path as _Path
+
+        work_dir = _Path(str(self._runtime.session.work_dir))
+        nudge_sources = [
+            (work_dir / ".supervisor_nudge.md", "_nudge_mtime"),
+            (work_dir / ".agentic_supervisor_nudge.md", "_agentic_nudge_mtime"),
+        ]
+        for nudge_path, mtime_attr in nudge_sources:
+            try:
+                mtime = nudge_path.stat().st_mtime
+            except OSError:
+                continue
+            if mtime <= getattr(self, mtime_attr):
+                continue
+            try:
+                content = nudge_path.read_text(encoding="utf-8").strip()
+            except OSError:
+                continue
+            if not content:
+                continue
+            setattr(self, mtime_attr, mtime)
+            self.steer(content)
+            logger.info("Injected supervisor nudge from {path}", path=nudge_path)
+
+    async def _check_unsolicited_consult(self) -> None:
+        """Check for a forced/unsolicited consult response and inject it.
+
+        When the orchestrator's forced-trigger mechanism writes a
+        ``.consult_response.json`` without the executor having issued a
+        request, this method detects it and injects the advisor guidance
+        as a steer message so it reaches the executor cleanly.
+        """
+        import json as _json
+        from pathlib import Path as _Path
+
+        work_dir = _Path(str(self._runtime.session.work_dir))
+        response_path = work_dir / ".consult_response.json"
+        request_path = work_dir / ".consult_request.json"
+
+        # Only act if response exists
+        if not response_path.exists():
+            return
+
+        # If there is a pending request, the ConsultAdvisor tool is
+        # actively polling — don't interfere with the normal flow.
+        try:
+            req_content = request_path.read_text(encoding="utf-8").strip()
+            if req_content and req_content != "{}":
+                return
+        except OSError:
+            pass  # No request file — this is unsolicited
+
+        # Read and parse the response
+        try:
+            raw = response_path.read_text(encoding="utf-8").strip()
+            if not raw:
+                return
+            response = _json.loads(raw)
+        except (OSError, _json.JSONDecodeError):
+            return
+
+        # Clean up the response file
+        with suppress(OSError):
+            response_path.unlink(missing_ok=True)
+
+        # Format and inject as a steer
+        parts: list[str] = ["[FORCED CONSULT — advisor response]", ""]
+        if diagnosis := response.get("diagnosis"):
+            parts.append(f"**Diagnosis:** {diagnosis}")
+        if next_action := response.get("next_action"):
+            parts.append(f"**Recommended next action:** {next_action}")
+        if do_not_do := response.get("do_not_do"):
+            parts.append(f"**Do NOT do:** {do_not_do}")
+        if stop_condition := response.get("stop_condition"):
+            parts.append(f"**Stop condition:** {stop_condition}")
+
+        content = "\n".join(parts)
+        self.steer(content)
+        logger.info("Injected forced consult response from {path}", path=response_path)
+
+    def _dump_agent_status(self, step_no: int) -> None:
+        """Drain the event buffer and append entries to the status log.
+
+        Called every ``_status_interval`` steps.  The file is consumed by the
+        orchestrator's nudge agent and Phase 2A trigger rules.
+
+        Contract (append-only, event-buffer driven):
+          - Events are pushed to ``_status_event_buffer`` at the point of
+            production (``_grow_context``), decoupled from mutable history.
+          - Each entry carries a monotonic ``seq`` and the ``step`` at which
+            the event was produced (not the dump step).
+          - The buffer is drained on each dump call — no replay, no loss.
+          - Compaction / revert do not affect the buffer.
+          - Consumers can use line offset or ``seq`` as a cursor.
+        """
+        import json
+        from pathlib import Path as _Path
+
+        if self._status_interval <= 0:
+            return
+        if not self._status_event_buffer:
+            return
+
+        status_path = _Path(str(self._runtime.session.work_dir)) / ".agent_status.jsonl"
+
+        # Drain the buffer
+        events = list(self._status_event_buffer)
+        self._status_event_buffer.clear()
+
+        lines: list[str] = []
+        for event_step, msg in events:
+            self._status_seq += 1
+            text = msg.extract_text(" ") if hasattr(msg, "extract_text") else str(msg.content)
+            preview = text[:500] if text else ""
+            entry: dict[str, object] = {
+                "seq": self._status_seq,
+                "step": event_step,
+                "role": msg.role,
+                "content_preview": preview,
+            }
+            if text and len(text) > 500:
+                entry["content_tail"] = text[-300:]
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                entry["tool_calls"] = [tc.function.name for tc in msg.tool_calls]
+                tool_args: list[str] = []
+                for tc in msg.tool_calls:
+                    name = tc.function.name
+                    args_raw = tc.function.arguments
+                    if not args_raw:
+                        continue
+                    try:
+                        args = json.loads(args_raw)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    if name in ("ReadFile", "Glob"):
+                        fp = (
+                            args.get("file_path")
+                            or args.get("path")
+                            or args.get("glob_pattern", "")
+                        )
+                        if fp:
+                            tool_args.append(f"{name}({fp})")
+                    elif name == "Grep":
+                        pat = args.get("pattern") or args.get("query", "")
+                        path = args.get("path", "")
+                        summary = f"Grep({pat[:40]}"
+                        if path:
+                            summary += f", in={path}"
+                        tool_args.append(summary + ")")
+                    elif name == "Shell":
+                        cmd = args.get("command", "")
+                        tool_args.append(f"Shell({cmd[:200]})")
+                    elif name in ("WriteFile", "StrReplaceFile"):
+                        fp = args.get("file_path") or args.get("path", "")
+                        if fp:
+                            tool_args.append(f"{name}({fp})")
+                if tool_args:
+                    entry["tool_args_summary"] = tool_args
+            lines.append(json.dumps(entry, ensure_ascii=False))
+
+        try:
+            with open(status_path, "a", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+            logger.debug(
+                "Appended {n} entries to agent status at step {step}", n=len(lines), step=step_no
+            )
+        except OSError:
+            # Write failed — put events back so they're not lost
+            self._status_event_buffer.extend(events)
 
     async def _inject_steer(self, content: str | list[ContentPart]) -> None:
         """Inject a single steer as a synthetic ``_steer`` tool_call + tool result pair."""
@@ -356,6 +549,17 @@ class KimiSoul:
         while not self._steer_queue.empty():
             self._steer_queue.get_nowait()
 
+        # Reset append-only status log for this trial.
+        self._status_event_buffer.clear()
+        self._status_seq = 0
+        self._current_step_no = 0
+        if self._status_interval > 0:
+            from pathlib import Path as _Path
+
+            status_path = _Path(str(self._runtime.session.work_dir)) / ".agent_status.jsonl"
+            with suppress(OSError):
+                status_path.write_text("", encoding="utf-8")
+
         if isinstance(self._agent.toolset, KimiToolset):
             await self._agent.toolset.wait_for_mcp_tools()
 
@@ -383,6 +587,7 @@ class KimiSoul:
         step_no = 0
         while True:
             step_no += 1
+            self._current_step_no = step_no  # expose for event buffer
             if step_no > self._loop_control.max_steps_per_turn:
                 raise MaxStepsReached(self._loop_control.max_steps_per_turn)
 
@@ -436,7 +641,13 @@ class KimiSoul:
                 await self._checkpoint()
                 await self._context.append_message(back_to_the_future.messages)
 
-            # Consume any pending steers between steps
+            # Dump status for external observers every N steps
+            if self._status_interval > 0 and step_no % self._status_interval == 0:
+                self._dump_agent_status(step_no)
+
+            # Check for external nudge file and forced consult responses
+            await self._check_nudge_file()
+            await self._check_unsolicited_consult()
             await self._consume_pending_steers()
 
     async def _step(self) -> StepOutcome | None:
@@ -544,6 +755,14 @@ class KimiSoul:
         await self._context.append_message(tool_messages)
         # token count of tool results are not available yet
 
+        # Push new messages to the status event buffer.
+        # This is the single point of event production — decoupled from
+        # context.history which can shrink on compaction/revert.
+        step = getattr(self, "_current_step_no", 0)
+        self._status_event_buffer.append((step, result.message))
+        for tm in tool_messages:
+            self._status_event_buffer.append((step, tm))
+
     async def compact_context(self) -> None:
         """
         Compact the context.
@@ -592,6 +811,7 @@ class KimiSoul:
             500,  # Internal Server Error
             502,  # Bad Gateway
             503,  # Service Unavailable
+            504,  # Gateway Timeout
         )
 
     async def _run_with_connection_recovery(

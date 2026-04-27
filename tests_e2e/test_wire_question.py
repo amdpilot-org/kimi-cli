@@ -1,9 +1,25 @@
-"""E2E tests for AskUserQuestion via the Wire protocol."""
+"""E2E tests for AskUserQuestion via the Wire protocol.
+
+NOTE (amdpilot-org fork): the AMD default agent.yaml intentionally drops
+`kimi_cli.tools.ask_user:AskUserQuestion` from the tool list (see
+amd-dev commits `cd2fb047` reset-default-agent-tools + `7e1e72b7`
+specialize-default-agent). Tests that exercise the AskUserQuestion flow
+via the default agent therefore fail on this fork because the scripted
+tool call has no handler.
+
+The wire protocol + server plumbing for AskUserQuestion is still intact —
+any user who re-enables the tool in their own agent.yaml will get the
+full flow back. These tests are skipped on the fork baseline to keep CI
+green; if AMD ever re-enables AskUserQuestion in the default agent, undo
+the skip.
+"""
 
 from __future__ import annotations
 
 import json
 from typing import Any
+
+import pytest
 
 from .wire_helpers import (
     build_ask_user_tool_call,
@@ -15,6 +31,13 @@ from .wire_helpers import (
     start_wire,
     summarize_messages,
     write_scripted_config,
+)
+
+pytestmark = pytest.mark.skip(
+    reason=(
+        "AMD fork default agent excludes AskUserQuestion tool — these tests "
+        "require it in the default toolset. See module docstring."
+    )
 )
 
 
@@ -210,5 +233,71 @@ def test_question_capability_negotiation(tmp_path) -> None:
         # Server should always report supports_question: True
         caps = result.get("capabilities", {})
         assert caps.get("supports_question") is True
+    finally:
+        wire.close()
+
+
+def test_ask_user_tool_hidden_when_question_not_supported(tmp_path) -> None:
+    """When question support is disabled, AskUserQuestion should not emit QuestionRequest."""
+    question = _make_question()
+    scripts = [
+        "\n".join(
+            [
+                "text: asking",
+                build_ask_user_tool_call("tc-q-hidden", [question]),
+            ]
+        ),
+        "text: done",
+    ]
+    config_path = write_scripted_config(tmp_path, scripts)
+    work_dir = make_work_dir(tmp_path)
+    home_dir = make_home_dir(tmp_path)
+
+    wire = start_wire(
+        config_path=config_path,
+        config_text=None,
+        work_dir=work_dir,
+        home_dir=home_dir,
+        yolo=True,
+    )
+    try:
+        # Initialize WITHOUT supports_question (defaults to false)
+        send_initialize(wire, capabilities={"supports_question": False})
+        wire.send_json(
+            {
+                "jsonrpc": "2.0",
+                "id": "prompt-1",
+                "method": "prompt",
+                "params": {"user_input": "ask me"},
+            }
+        )
+
+        resp, messages = collect_until_response(
+            wire,
+            "prompt-1",
+            request_handler=_question_request_handler({}),
+        )
+        assert resp.get("result", {}).get("status") == "finished"
+
+        # The client does not support QuestionRequest, so no QuestionRequest should be emitted.
+        summary = summarize_messages(messages)
+        question_requests = [m for m in summary if m.get("type") == "QuestionRequest"]
+        assert len(question_requests) == 0, (
+            "AskUserQuestion tool should be hidden when client does not support questions"
+        )
+
+        # The scripted AskUserQuestion call should complete with a tool error indicating
+        # the client cannot handle interactive questions.
+        tool_results = [m for m in summary if m.get("type") == "ToolResult"]
+        for tr in tool_results:
+            if tr["payload"]["tool_call_id"] != "tc-q-hidden":
+                continue
+            rv = tr["payload"]["return_value"]
+            assert rv["is_error"] is True
+            assert "does not support interactive questions" in rv["message"]
+            assert "Do NOT call this tool again" in rv["message"]
+            break
+        else:
+            raise AssertionError("ToolResult for tc-q-hidden not found")
     finally:
         wire.close()

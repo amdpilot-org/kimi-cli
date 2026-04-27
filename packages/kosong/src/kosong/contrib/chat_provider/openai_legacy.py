@@ -142,11 +142,17 @@ class OpenAILegacy:
 
     def on_retryable_error(self, error: BaseException) -> bool:
         old_client = self.client
-        self.client = create_openai_client(
-            api_key=self._api_key,
-            base_url=self._base_url,
-            client_kwargs=self._client_kwargs,
-        )
+        try:
+            self.client = create_openai_client(
+                api_key=self._api_key,
+                base_url=self._base_url,
+                client_kwargs=self._client_kwargs,
+            )
+        except Exception:
+            # Client creation can fail (e.g. missing SSL certs if venv was
+            # recreated). Keep the old client so the caller can still retry or
+            # surface the original connection error.
+            return False
         close_replaced_openai_client(old_client, client_kwargs=self._client_kwargs)
         return True
 
@@ -201,6 +207,10 @@ class OpenAILegacy:
         else:
             message.content = content
         dumped_message = message.model_dump(exclude_none=True)
+        if "tool_calls" in dumped_message:
+            for tc in dumped_message["tool_calls"]:
+                if "function" in tc:
+                    tc["function"].setdefault("arguments", "{}")
         if reasoning_content:
             assert self._reasoning_key, (
                 "reasoning_key must not be empty if reasoning_content exists"

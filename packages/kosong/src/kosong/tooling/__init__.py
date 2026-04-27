@@ -15,6 +15,28 @@ from kosong.utils.typing import JsonType
 type ParametersType = dict[str, Any]
 
 
+def _try_recover_double_encoded_args(arguments: JsonType) -> JsonType:
+    """Recover from OSS models double-encoding JSON arguments.
+
+    Some models (e.g. Qwen3.5) pass structured fields as JSON strings
+    instead of objects: ``{"edit": "{\"old\": ...}"}`` instead of
+    ``{"edit": {"old": ...}}``.  Try to parse any string value that
+    looks like a JSON object or array.
+    """
+    import json as _json
+
+    if not isinstance(arguments, dict):
+        return arguments
+    recovered = dict(arguments)
+    import contextlib
+
+    for key, val in recovered.items():
+        if isinstance(val, str) and val.strip()[:1] in ("{", "["):
+            with contextlib.suppress(ValueError, _json.JSONDecodeError):
+                recovered[key] = _json.loads(val)
+    return recovered
+
+
 class Tool(BaseModel):
     """The definition of a tool that can be recognized by the model."""
 
@@ -189,8 +211,12 @@ class CallableTool(Tool, ABC):
 
         try:
             jsonschema.validate(arguments, self.parameters)
-        except jsonschema.ValidationError as e:
-            return ToolValidateError(str(e))
+        except jsonschema.ValidationError:
+            arguments = _try_recover_double_encoded_args(arguments)
+            try:
+                jsonschema.validate(arguments, self.parameters)
+            except jsonschema.ValidationError as e:
+                return ToolValidateError(str(e))
 
         if isinstance(arguments, list):
             ret = await self.__call__(*arguments)
@@ -294,8 +320,12 @@ class CallableTool2[Params: BaseModel](ABC):
 
         try:
             params = self.params.model_validate(arguments)
-        except pydantic.ValidationError as e:
-            return ToolValidateError(str(e))
+        except pydantic.ValidationError:
+            arguments = _try_recover_double_encoded_args(arguments)
+            try:
+                params = self.params.model_validate(arguments)
+            except pydantic.ValidationError as e:
+                return ToolValidateError(str(e))
 
         ret = await self.__call__(params)
         if not isinstance(ret, ToolReturnValue):  # type: ignore[reportUnnecessaryIsInstance]

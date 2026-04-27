@@ -14,7 +14,7 @@ kimi --agent okabe
 
 The default agent, suitable for general use. Enabled tools:
 
-`Task`, `SetTodoList`, `Shell`, `ReadFile`, `ReadMediaFile`, `Glob`, `Grep`, `WriteFile`, `StrReplaceFile`, `SearchWeb`, `FetchURL`
+`Task`, `AskUserQuestion`, `SetTodoList`, `Shell`, `ReadFile`, `ReadMediaFile`, `Glob`, `Grep`, `WriteFile`, `StrReplaceFile`, `SearchWeb`, `FetchURL`
 
 ### `okabe`
 
@@ -167,6 +167,21 @@ The following are all built-in tools in Kimi Code CLI.
 | `subagent_name` | string | Subagent name |
 | `prompt` | string | Detailed task description |
 
+### `AskUserQuestion`
+
+- **Path**: `kimi_cli.tools.ask_user:AskUserQuestion`
+- **Description**: Present structured questions and options to the user during execution, collecting preferences or decisions. Suitable for scenarios where the user needs to choose between approaches, resolve ambiguous instructions, or provide requirements. Should not be overused — only call when the user's choice genuinely affects subsequent actions.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `questions` | array | Questions list (1–4 questions) |
+| `questions[].question` | string | Question text, ending with `?` |
+| `questions[].header` | string | Short label, max 12 characters (e.g., `Auth`, `Style`) |
+| `questions[].options` | array | Available options (2–4), the system adds an "Other" option automatically |
+| `questions[].options[].label` | string | Option label (1–5 words), append `(Recommended)` for recommended options |
+| `questions[].options[].description` | string | Option description |
+| `questions[].multi_select` | bool | Allow multiple selections, default false |
+
 ### `SetTodoList`
 
 - **Path**: `kimi_cli.tools.todo:SetTodoList`
@@ -191,12 +206,12 @@ The following are all built-in tools in Kimi Code CLI.
 ### `ReadFile`
 
 - **Path**: `kimi_cli.tools.file:ReadFile`
-- **Description**: Read text file content. Max 1000 lines per read, max 2000 characters per line. Files outside working directory require absolute paths.
+- **Description**: Read text file content. Max 1000 lines per read, max 2000 characters per line. Files outside working directory require absolute paths. Every read returns the total number of lines in the file.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `path` | string | File path |
-| `line_offset` | int | Starting line number, default 1 |
+| `line_offset` | int | Starting line number, default 1. Supports negative values to read from the end of the file (e.g. `-100` reads the last 100 lines); absolute value cannot exceed 1000 |
 | `n_lines` | int | Number of lines to read, default/max 1000 |
 
 ### `ReadMediaFile`

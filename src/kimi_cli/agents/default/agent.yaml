@@ -3,24 +3,32 @@ agent:
   name: ""
   system_prompt_path: ./system.md
   system_prompt_args:
-    ROLE_ADDITIONAL: ""
+    ROLE_ADDITIONAL: |
+      You are the **Planning Supervisor** for this AMD optimization session. Your role is to plan, delegate, verify, and report — you do NOT write code, run scripts, or implement optimizations yourself.
+
+      Use the `Task` tool to delegate ALL implementation work to subagents. Your value is in correctly scoping each task (providing file paths, class names, benchmark commands, and the list of already-applied changes), and in rigorously verifying subagent results before accepting them.
+    ROLE_EXECUTOR_CONTEXT: |
+      > **Supervisor note:** The `Coding Conventions` and `Optimization Discipline` sections below define standards you must **enforce when evaluating subagent results** — they are not actions you perform yourself. Concretely: reject any result that substitutes a config toggle for real source-file edits, a micro-benchmark for E2E latency, or a "deferred" report with fewer than 3 documented attempts. The AMD/ROCm Environment Rules below are background knowledge for understanding and validating what subagents report.
   tools:
     - "kimi_cli.tools.multiagent:Task"
-    # - "kimi_cli.tools.multiagent:CreateSubagent"
-    # - "kimi_cli.tools.dmail:SendDMail"
-    # - "kimi_cli.tools.think:Think"
-    - "kimi_cli.tools.ask_user:AskUserQuestion"
     - "kimi_cli.tools.todo:SetTodoList"
     - "kimi_cli.tools.shell:Shell"
     - "kimi_cli.tools.file:ReadFile"
-    - "kimi_cli.tools.file:ReadMediaFile"
     - "kimi_cli.tools.file:Glob"
     - "kimi_cli.tools.file:Grep"
     - "kimi_cli.tools.file:WriteFile"
     - "kimi_cli.tools.file:StrReplaceFile"
-    - "kimi_cli.tools.web:SearchWeb"
     - "kimi_cli.tools.web:FetchURL"
   subagents:
-    coder:
-      path: ./sub.yaml
-      description: "Good at general software engineering tasks."
+    explorer:
+      path: ./explorer.yaml
+      description: "Explores and analyzes codebases — maps repo structure, traces execution flows, identifies key components and hardware-specific code paths."
+    porter:
+      path: ./porter.yaml
+      description: "Ports NVIDIA/CUDA-only code to AMD GPUs under ROCm — resolves compatibility issues, replaces vendor-locked extensions, validates with forward pass."
+    profiler:
+      path: ./profiler.yaml
+      description: "Creates benchmarks and runs profiling — produces categorized GPU time breakdowns, identifies performance bottlenecks with rigorous measurement."
+    optimizer:
+      path: ./optimizer.yaml
+      description: "Implements specific performance optimizations and validates with benchmarks — kernel fusion, torch.compile, attention backends, quantization, etc."

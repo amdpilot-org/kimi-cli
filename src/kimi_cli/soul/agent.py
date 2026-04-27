@@ -74,6 +74,15 @@ class Runtime:
     labor_market: LaborMarket
     environment: Environment
     skills: dict[str, Skill]
+    skills_roots: tuple[KaosPath, ...]
+    """Discovered skill directory roots, treated as immutable after ``create()``.
+
+    A ``tuple`` (not ``list``) enforces at the type level that downstream
+    code cannot mutate the shared reference — subagents spawned via
+    ``copy_for_*_subagent()`` share this tuple rather than a deep copy.
+    ``Glob._validate_directory`` only reads it with ``any(...)``, which
+    accepts any iterable.
+    """
 
     @staticmethod
     async def create(
@@ -136,6 +145,7 @@ class Runtime:
             labor_market=LaborMarket(),
             environment=environment,
             skills=skills_by_name,
+            skills_roots=tuple(skills_roots),
         )
 
     def copy_for_fixed_subagent(self) -> Runtime:
@@ -151,6 +161,7 @@ class Runtime:
             labor_market=LaborMarket(),  # fixed subagent has its own LaborMarket
             environment=self.environment,
             skills=self.skills,
+            skills_roots=self.skills_roots,
         )
 
     def copy_for_dynamic_subagent(self) -> Runtime:
@@ -166,6 +177,7 @@ class Runtime:
             labor_market=self.labor_market,  # dynamic subagent shares LaborMarket with main agent
             environment=self.environment,
             skills=self.skills,
+            skills_roots=self.skills_roots,
         )
 
 

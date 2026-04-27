@@ -14,7 +14,7 @@ kimi --agent okabe
 
 默认 Agent，适合通常情况使用。启用的工具：
 
-`Task`、`SetTodoList`、`Shell`、`ReadFile`、`ReadMediaFile`、`Glob`、`Grep`、`WriteFile`、`StrReplaceFile`、`SearchWeb`、`FetchURL`
+`Task`、`AskUserQuestion`、`SetTodoList`、`Shell`、`ReadFile`、`ReadMediaFile`、`Glob`、`Grep`、`WriteFile`、`StrReplaceFile`、`SearchWeb`、`FetchURL`
 
 ### `okabe`
 
@@ -167,6 +167,21 @@ agent:
 | `subagent_name` | string | 子 Agent 名称 |
 | `prompt` | string | 任务详细描述 |
 
+### `AskUserQuestion`
+
+- **路径**：`kimi_cli.tools.ask_user:AskUserQuestion`
+- **描述**：在执行过程中向用户展示结构化问题和选项，收集用户偏好或决策。适用于需要用户在多个方案中做出选择、解决模糊指令或收集需求信息的场景。不应过度使用——只在用户的选择真正影响后续操作时才调用。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `questions` | array | 问题列表（1–4 个问题） |
+| `questions[].question` | string | 问题文本，以 `?` 结尾 |
+| `questions[].header` | string | 短标签，最多 12 字符（如 `Auth`、`Style`） |
+| `questions[].options` | array | 可选项（2–4 个），系统会自动添加 "Other" 选项 |
+| `questions[].options[].label` | string | 选项标签（1–5 词），推荐选项可追加 `(Recommended)` |
+| `questions[].options[].description` | string | 选项说明 |
+| `questions[].multi_select` | bool | 是否允许多选，默认 false |
+
 ### `SetTodoList`
 
 - **路径**：`kimi_cli.tools.todo:SetTodoList`
@@ -191,12 +206,12 @@ agent:
 ### `ReadFile`
 
 - **路径**：`kimi_cli.tools.file:ReadFile`
-- **描述**：读取文本文件内容。单次最多读取 1000 行，每行最多 2000 字符。工作目录外的文件需使用绝对路径。
+- **描述**：读取文本文件内容。单次最多读取 1000 行，每行最多 2000 字符。工作目录外的文件需使用绝对路径。每次读取都会在消息中返回文件总行数。
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | `path` | string | 文件路径 |
-| `line_offset` | int | 起始行号，默认 1 |
+| `line_offset` | int | 起始行号，默认 1。支持负数表示从文件末尾读取（如 `-100` 读取最后 100 行），绝对值不超过 1000 |
 | `n_lines` | int | 读取行数，默认/最大 1000 |
 
 ### `ReadMediaFile`

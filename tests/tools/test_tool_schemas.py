@@ -142,7 +142,7 @@ def test_shell_params_schema(shell_tool: Shell):
                 "timeout": {
                     "default": 60,
                     "description": "The timeout in seconds for the command to execute. If the command takes longer than this, it will be killed.",
-                    "maximum": 300,
+                    "maximum": 5400,
                     "minimum": 1,
                     "type": "integer",
                 },
@@ -164,8 +164,7 @@ def test_read_file_params_schema(read_file_tool: ReadFile):
                 },
                 "line_offset": {
                     "default": 1,
-                    "description": "The line number to start reading from. By default read from the beginning of the file. Set this when the file is too large to read at once.",
-                    "minimum": 1,
+                    "description": "The line number to start reading from. By default read from the beginning of the file. Set this when the file is too large to read at once. Negative values read from the end of the file (e.g. -100 reads the last 100 lines). The absolute value of negative offset cannot exceed 1000.",
                     "type": "integer",
                 },
                 "n_lines": {
@@ -263,8 +262,8 @@ def test_grep_params_schema(grep_tool: Grep):
                     "description": "Number of lines to show before and after each match (the `-C` option). Requires `output_mode` to be `content`.",
                 },
                 "-n": {
-                    "default": False,
-                    "description": "Show line numbers in output (the `-n` option). Requires `output_mode` to be `content`.",
+                    "default": True,
+                    "description": "Show line numbers in output (the `-n` option). Requires `output_mode` to be `content`. Defaults to true.",
                     "type": "boolean",
                 },
                 "-i": {
@@ -278,13 +277,24 @@ def test_grep_params_schema(grep_tool: Grep):
                     "description": "File type to search. Examples: py, rust, js, ts, go, java, etc. More efficient than `glob` for standard file types.",
                 },
                 "head_limit": {
-                    "anyOf": [{"type": "integer"}, {"type": "null"}],
-                    "default": None,
-                    "description": "Limit output to first N lines, equivalent to `| head -N`. Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count_matches (limits count entries). By default, no limit is applied.",
+                    "anyOf": [{"minimum": 0, "type": "integer"}, {"type": "null"}],
+                    "default": 250,
+                    "description": "Limit output to first N lines/entries, equivalent to `| head -N`. Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count_matches (limits count entries). Defaults to 250. Pass 0 for unlimited (use sparingly — large result sets waste context).",
+                },
+                "offset": {
+                    "default": 0,
+                    "description": "Skip first N lines/entries before applying head_limit, equivalent to `| tail -n +N | head -N`. Works across all output modes. Defaults to 0.",
+                    "minimum": 0,
+                    "type": "integer",
                 },
                 "multiline": {
                     "default": False,
                     "description": "Enable multiline mode where `.` matches newlines and patterns can span lines (the `-U` and `--multiline-dotall` options). By default, multiline mode is disabled.",
+                    "type": "boolean",
+                },
+                "include_ignored": {
+                    "default": False,
+                    "description": "Include files that are ignored by `.gitignore`, `.ignore`, and other ignore rules. Useful for searching gitignored artifacts such as build outputs (e.g. `dist/`, `build/`) or `node_modules`. Sensitive files (like `.env`) remain filtered by the sensitive-file protection layer. Defaults to false.",
                     "type": "boolean",
                 },
             },

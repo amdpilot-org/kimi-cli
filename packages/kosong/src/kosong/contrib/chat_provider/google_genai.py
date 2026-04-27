@@ -42,6 +42,7 @@ from kosong.chat_provider import (
     StreamedMessagePart,
     ThinkingEffort,
     TokenUsage,
+    convert_httpx_error,
 )
 from kosong.message import (
     AudioURLPart,
@@ -180,7 +181,8 @@ class GoogleGenAI:
                 case "medium":
                     # FIXME: medium not supported yet, use high
                     thinking_config.thinking_level = ThinkingLevel.HIGH
-                case "high":
+                case "high" | "xhigh" | "max":
+                    # xhigh/max are Anthropic-specific; degrade to HIGH for Gemini.
                     thinking_config.thinking_level = ThinkingLevel.HIGH
         else:
             match effort:
@@ -193,7 +195,8 @@ class GoogleGenAI:
                 case "medium":
                     thinking_config.thinking_budget = 4096
                     thinking_config.include_thoughts = True
-                case "high":
+                case "high" | "xhigh" | "max":
+                    # xhigh/max are Anthropic-specific; cap at Gemini's highest budget.
                     thinking_config.thinking_budget = 32_000
                     thinking_config.include_thoughts = True
 
@@ -299,6 +302,8 @@ class GoogleGenAIStreamedMessage:
                             yield message_part
         except genai_errors.APIError as exc:
             raise _convert_error(exc) from exc
+        except httpx.HTTPError as exc:
+            raise convert_httpx_error(exc) from exc
 
     def _process_part(self, part: Part):
         """Process a single part and yield message components (synchronous generator).
