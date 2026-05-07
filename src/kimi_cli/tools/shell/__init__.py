@@ -1,4 +1,5 @@
 import asyncio
+import os as _os
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -15,7 +16,7 @@ from kimi_cli.tools.utils import ToolRejectedError, ToolResultBuilder, load_desc
 from kimi_cli.utils.environment import Environment
 from kimi_cli.utils.subprocess_env import get_clean_env
 
-MAX_TIMEOUT = 5 * 60
+MAX_TIMEOUT = int(_os.environ.get("KIMI_SHELL_MAX_TIMEOUT", 5 * 60))
 
 
 # ---------------------------------------------------------------------------
